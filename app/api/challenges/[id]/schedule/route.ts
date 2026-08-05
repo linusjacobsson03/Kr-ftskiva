@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { getAdminSession, getCurrentUser } from "@/lib/auth";
 import { getOne, run, toSqliteDatetime, ChallengeRow, UserRow } from "@/lib/db";
 import { apiError } from "@/lib/apiError";
 
@@ -8,12 +8,11 @@ export async function POST(
   ctx: RouteContext<"/api/challenges/[id]/schedule">
 ) {
   try {
-    const admin = await getCurrentUser();
-    if (!admin) {
-      return NextResponse.json({ error: "Ej inloggad." }, { status: 401 });
-    }
-    if (!admin.is_admin) {
-      return NextResponse.json({ error: "Ingen behörighet." }, { status: 403 });
+    if (!(await getAdminSession())) {
+      return NextResponse.json(
+        { error: "Fel lösenord eller session har gått ut." },
+        { status: 401 }
+      );
     }
 
     const { id } = await ctx.params;
@@ -55,10 +54,14 @@ export async function POST(
       targetUserId = targetUser.id;
     }
 
+    // See app/api/challenges/route.ts — created_by is just bookkeeping now
+    // that admin access isn't tied to a particular user account.
+    const createdBy = (await getCurrentUser())?.id ?? null;
+
     const result = await run(
       `INSERT INTO challenge_schedule (challenge_id, send_at, target_type, target_user_id, created_by)
        VALUES (?, ?, ?, ?, ?)`,
-      [challenge.id, toSqliteDatetime(sendAtDate), target, targetUserId, admin.id]
+      [challenge.id, toSqliteDatetime(sendAtDate), target, targetUserId, createdBy]
     );
 
     return NextResponse.json({ id: result.lastInsertRowid }, { status: 201 });

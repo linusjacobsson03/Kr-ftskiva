@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, Clock, Send, Shuffle, Sparkles, X } from "lucide-react";
-import AuthGate from "../components/AuthGate";
+import { Check, Clock, Lock, Send, Shuffle, Sparkles, X } from "lucide-react";
+import AdminPasscodeGate from "../components/AdminPasscodeGate";
 import type { ChallengeTemplate, ScheduleEntry, UserOption } from "@/lib/types";
 
 /** Difficulty is derived from points, not stored separately — keeps the
@@ -598,11 +598,24 @@ function ScheduleTab() {
 function AdminContent() {
   const [tab, setTab] = useState<"pending" | "approved" | "schedule">("pending");
 
+  async function lock() {
+    await fetch("/api/admin/logout", { method: "POST" });
+    window.location.reload();
+  }
+
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-7">
-      <div>
-        <h1 className="font-display text-2xl font-medium text-cream">Admin</h1>
-        <p className="mt-0.5 text-sm text-muted">Godkänn, skapa, schemalägg och skicka utmaningar</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-medium text-cream">Admin</h1>
+          <p className="mt-0.5 text-sm text-muted">
+            Godkänn, skapa, schemalägg och skicka utmaningar
+          </p>
+        </div>
+        <button onClick={lock} className="btn-ghost shrink-0">
+          <Lock size={14} strokeWidth={1.75} />
+          Lås
+        </button>
       </div>
 
       <div className="card flex p-1">
@@ -634,8 +647,8 @@ function AdminContent() {
 
 export default function AdminPage() {
   return (
-    <AuthGate adminOnly>
+    <AdminPasscodeGate>
       <AdminContent />
-    </AuthGate>
+    </AdminPasscodeGate>
   );
 }

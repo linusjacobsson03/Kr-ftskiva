@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { getAdminSession, getCurrentUser } from "@/lib/auth";
 import { getAll, getOne, run, CHALLENGE_DURATION_SECONDS } from "@/lib/db";
 import { apiError } from "@/lib/apiError";
 
+const ADMIN_ERROR = "Fel lösenord eller session har gått ut.";
+
 export async function GET(request: Request) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Ej inloggad." }, { status: 401 });
-    }
-    if (!user.is_admin) {
-      return NextResponse.json({ error: "Ingen behörighet." }, { status: 403 });
+    if (!(await getAdminSession())) {
+      return NextResponse.json({ error: ADMIN_ERROR }, { status: 401 });
     }
 
     // Default view is the approved pool (what you can send out); pass
@@ -37,12 +35,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Ej inloggad." }, { status: 401 });
-    }
-    if (!user.is_admin) {
-      return NextResponse.json({ error: "Ingen behörighet." }, { status: 403 });
+    if (!(await getAdminSession())) {
+      return NextResponse.json({ error: ADMIN_ERROR }, { status: 401 });
     }
 
     let body: {
@@ -73,10 +67,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Ge utmaningen en titel." }, { status: 400 });
     }
 
+    // The admin area no longer requires being logged into a particular
+    // party-guest account (see lib/auth.ts) — attribute the challenge to
+    // whoever's regular session happens to be active, if any, purely for
+    // bookkeeping. Nullable, nothing depends on it being set.
+    const createdBy = (await getCurrentUser())?.id ?? null;
+
     const result = await run(
       `INSERT INTO challenges (title, description, points, duration_seconds, emoji, created_by, suggested_time)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [title, description, points, CHALLENGE_DURATION_SECONDS, emoji, user.id, suggestedTime]
+      [title, description, points, CHALLENGE_DURATION_SECONDS, emoji, createdBy, suggestedTime]
     );
 
     const challenge = await getOne("SELECT * FROM challenges WHERE id = ?", [

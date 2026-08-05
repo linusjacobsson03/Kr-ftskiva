@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { getAdminSession } from "@/lib/auth";
 import { getAll, getOne, runBatch, ChallengeRow, UserRow } from "@/lib/db";
 import { sendPushToUser } from "@/lib/push";
 import { apiError } from "@/lib/apiError";
@@ -9,12 +9,11 @@ export async function POST(
   ctx: RouteContext<"/api/challenges/[id]/send">
 ) {
   try {
-    const admin = await getCurrentUser();
-    if (!admin) {
-      return NextResponse.json({ error: "Ej inloggad." }, { status: 401 });
-    }
-    if (!admin.is_admin) {
-      return NextResponse.json({ error: "Ingen behörighet." }, { status: 403 });
+    if (!(await getAdminSession())) {
+      return NextResponse.json(
+        { error: "Fel lösenord eller session har gått ut." },
+        { status: 401 }
+      );
     }
 
     const { id } = await ctx.params;

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { getAdminSession, getCurrentUser } from "@/lib/auth";
 import { getAll, runBatch, CHALLENGE_DURATION_SECONDS } from "@/lib/db";
 import { apiError } from "@/lib/apiError";
 
@@ -69,13 +69,16 @@ const SUGGESTED_CHALLENGES = [
 
 export async function POST() {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Ej inloggad." }, { status: 401 });
+    if (!(await getAdminSession())) {
+      return NextResponse.json(
+        { error: "Fel lösenord eller session har gått ut." },
+        { status: 401 }
+      );
     }
-    if (!user.is_admin) {
-      return NextResponse.json({ error: "Ingen behörighet." }, { status: 403 });
-    }
+
+    // See app/api/challenges/route.ts — created_by is just bookkeeping now
+    // that admin access isn't tied to a particular user account.
+    const createdBy = (await getCurrentUser())?.id ?? null;
 
     const existing = await getAll<{ title: string }>("SELECT title FROM challenges");
     const existingTitles = new Set(existing.map((r) => r.title));
@@ -92,7 +95,7 @@ export async function POST() {
           c.points,
           CHALLENGE_DURATION_SECONDS,
           c.emoji,
-          user.id,
+          createdBy,
           c.suggestedTime,
         ],
       }))

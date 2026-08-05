@@ -7,21 +7,21 @@ import { Camera, Home, LogOut, Settings, Star, Trophy, UtensilsCrossed } from "l
 import { useAuth } from "../providers";
 import Avatar from "./Avatar";
 
+// Admin isn't gated by an account flag — it's its own passcode-protected
+// area (see AdminPasscodeGate) that anyone who knows the passcode can open,
+// so the tab is always here rather than conditioned on the logged-in user.
 const TABS = [
   { href: "/", label: "Hem", icon: Home },
   { href: "/challenges", label: "Utmaningar", icon: UtensilsCrossed },
   { href: "/photos", label: "Foton", icon: Camera },
   { href: "/leaderboard", label: "Topplista", icon: Trophy },
+  { href: "/admin", label: "Admin", icon: Settings },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-
-  const tabs = user?.isAdmin
-    ? [...TABS, { href: "/admin", label: "Admin", icon: Settings }]
-    : TABS;
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -59,7 +59,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {user && (
         <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-white/[0.06] bg-bg/90 backdrop-blur-md">
           <div className="mx-auto flex max-w-xl items-stretch justify-around">
-            {tabs.map((tab) => {
+            {TABS.map((tab) => {
               const active =
                 tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
               const Icon = tab.icon;

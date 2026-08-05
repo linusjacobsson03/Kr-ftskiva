@@ -8,12 +8,15 @@ tävla om kvällens kräftbukal på topplistan.
 
 - **Konto**: skriv in förnamn, efternamn och lösenord, du kommer direkt in
   med ditt namn. Två personer får gärna heta samma sak — lösenordet skiljer
-  er åt. Första personen som registrerar sig blir automatiskt admin.
-- **Foton**: alla kan ladda upp bilder från kvällen i ett gemensamt flöde.
-- **Utmaningar**: adminen skapar utmaningar (t.ex. "pussa någon på kinden")
-  och skickar dem till alla eller en slumpad person. Mottagaren får en
-  pushnotis och har en begränsad tid (standard 2 minuter) på sig att ladda
-  upp ett bildbevis för att få poängen.
+  er åt.
+- **Foton**: alla kan ladda upp bilder från kvällen i ett gemensamt flöde,
+  eller ta en direkt i appen (framkamerans förhandsvisning spegelvänds som
+  förväntat, men den sparade bilden blir rättvänd — som i Snapchat).
+- **Admin**: en egen, lösenordsskyddad yta (`/admin`, se nedan) — inte
+  knuten till något visst konto. Där skapas utmaningar (t.ex. "pussa någon
+  på kinden") som skickas direkt eller schemaläggs till alla, en slumpad
+  person, eller en namngiven person. Mottagaren får en pushnotis och har 5
+  minuter på sig att ladda upp ett bildbevis för att få poängen.
 - **Topplista**: poängen summeras live och rankar alla deltagare.
 - **PWA / pushnotiser**: appen går att lägga till på hemskärmen på både
   iPhone och Android och skickar riktiga pushnotiser (Web Push) när en ny
@@ -26,8 +29,10 @@ npm install
 npm run dev
 ```
 
-Öppna `http://localhost:3000`, skapa ett konto (blir automatiskt admin) och
-gå till **Admin**-fliken. Under **"Godkänn"** kan du klicka **"Hämta
+Öppna `http://localhost:3000`, skapa ett konto och gå till **Admin**-fliken
+— den frågar efter ett lösenord (se **Admin-lösenord** nedan) första gången
+i en webbläsare, sen kommer du in direkt. Under **"Godkänn"** kan du klicka
+**"Hämta
 förslag"** för att fylla på en kö med färdiga kräftskiva-utmaningar i fyra
 svårighetsgrader (1p Lätt / 2p Medel / 3p Svår / 5p Vågad) — gå igenom dem en
 och en och godkänn eller avslå. Godkända utmaningar dyker upp under fliken
@@ -86,8 +91,24 @@ du kan alltid utveckla/testa lokalt utan Turso-konto.
 | --- | --- |
 | `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | Gratis hostad databas (se ovan). Utelämnas = lokal SQLite-fil. |
 | `SESSION_SECRET` | Nyckel för att signera inloggningssessioner (annars auto-genererad) |
+| `ADMIN_PASSCODE` | Lösenordet för `/admin` (annars slumpas ett fram vid första körningen — se nedan) |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Nycklar för Web Push-notiser (annars auto-genererade) |
 | `DATABASE_PATH` | Sökväg till lokal sqlite-fil (annars `data/kraftskiva.db`) — ignoreras om Turso är satt |
+
+### Admin-lösenord
+
+`/admin` är en egen yta skyddad av ett delat lösenord istället för att vara
+knuten till ett visst konto — vem som helst som kan lösenordet kommer åt
+den, oavsett vilket (eller om något) konto de råkar vara inloggade på i
+appen i övrigt. Praktiskt om flera ska kunna hjälpa till att sköta
+utmaningarna under kvällen.
+
+Sätt ditt eget lösenord med `ADMIN_PASSCODE` i `.env.local` **innan** första
+körningen (annars slumpas ett fram och sparas i databasen — kolla i så fall
+`data`-tabellen `settings`, nyckeln `admin_passcode_hash`, för att byta det
+i efterhand). Glömt lösenordet och ingen `ADMIN_PASSCODE` satt? Radera raden
+med `key = 'admin_passcode_hash'` ur `settings`-tabellen så genereras ett
+nytt (eller sätt env-variabeln och starta om).
 
 ## Distribuera till festen
 

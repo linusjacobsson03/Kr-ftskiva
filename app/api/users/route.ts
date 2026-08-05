@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser, displayNameOf } from "@/lib/auth";
+import { getAdminSession, displayNameOf } from "@/lib/auth";
 import { getAll, UserRow } from "@/lib/db";
 import { apiError } from "@/lib/apiError";
 
 /** Admin-only list of participants, for the "skicka till specifik person" picker. */
 export async function GET() {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Ej inloggad." }, { status: 401 });
-    }
-    if (!user.is_admin) {
-      return NextResponse.json({ error: "Ingen behörighet." }, { status: 403 });
+    if (!(await getAdminSession())) {
+      return NextResponse.json(
+        { error: "Fel lösenord eller session har gått ut." },
+        { status: 401 }
+      );
     }
 
     const users = await getAll<UserRow>(
