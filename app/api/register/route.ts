@@ -52,22 +52,22 @@ export async function POST(request: Request) {
   try {
     // Names aren't unique on purpose (two "Anna Andersson" can both be at
     // the party, told apart by password — see app/api/login/route.ts) but
-    // the exact same name *and* password is the same account already
-    // existing, not a second person. Block that specific combination so you
-    // can't accidentally (or repeatedly) re-register yourself.
+    // the exact same name *and* password matching an existing account means
+    // this IS that person, not a new one — so log them into it instead of
+    // creating a duplicate. Matters because the form defaults to "Skapa
+    // konto"; without this, someone who already has an account but doesn't
+    // notice/switch to "Logga in" would either get a confusing dead-end
+    // error or (pre-fix) a duplicate account.
     const sameName = await getAll<UserRow>(
       "SELECT * FROM users WHERE lower(first_name) = lower(?) AND lower(last_name) = lower(?)",
       [firstName, lastName]
     );
     for (const existing of sameName) {
       if (await bcrypt.compare(password, existing.password_hash)) {
-        return NextResponse.json(
-          {
-            error:
-              "Det kontot finns redan. Logga in istället, eller välj ett annat lösenord om ni råkar heta samma.",
-          },
-          { status: 409 }
-        );
+        const token = await createSessionToken(existing.id);
+        const response = NextResponse.json({ user: sanitizeUser(existing) });
+        response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
+        return response;
       }
     }
 
