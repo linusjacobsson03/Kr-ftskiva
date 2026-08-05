@@ -27,9 +27,23 @@ npm run dev
 ```
 
 Öppna `http://localhost:3000`, skapa ett konto (blir automatiskt admin) och
-gå till **Admin**-fliken för att lägga till utmaningar. Knappen
-**"✨ Exempel-utmaningar"** lägger in tio färdiga kräftskiva-utmaningar att
-skicka ut direkt.
+gå till **Admin**-fliken. Under **"Godkänn"** kan du klicka **"Hämta
+förslag"** för att fylla på en kö med färdiga kräftskiva-utmaningar i fyra
+svårighetsgrader (1p Lätt / 2p Medel / 3p Svår / 5p Vågad) — gå igenom dem en
+och en och godkänn eller avslå. Godkända utmaningar dyker upp under fliken
+**"Utmaningar"**, redo att skickas ut direkt (till alla eller en slumpad
+person) eller **schemaläggas** till en specifik tid och mottagare (slumpad,
+en namngiven person, eller alla) — se fliken **"Schema"** för kommande och
+skickade utmaningar, med möjlighet att avboka. Alla utmaningar har 5 minuter
+på sig att lösas, oavsett svårighetsgrad. Du kan förstås också skapa egna
+utmaningar direkt i "Utmaningar" — de läggs till som redan godkända.
+
+Schemaläggningen körs av en enkel poller inbyggd i appens serverprocess
+(kollar var 15:e sekund om något är dags att skickas) — den fungerar så
+länge servern är igång (lokalt, eller `next start` på en dator som är på
+hela kvällen). Kör du på en plattform utan en långlivad serverprocess (t.ex.
+Vercels serverless-funktioner) kommer schemalagda utmaningar **inte**
+skickas ut av sig själva där.
 
 Inget manuellt konfigureringssteg krävs — appen genererar och sparar sin
 egen sessionsnyckel och sina egna VAPID-nycklar (för pushnotiser) i

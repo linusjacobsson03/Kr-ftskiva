@@ -58,4 +58,26 @@ export interface ChallengeTemplate {
   created_at: string;
   times_sent: number;
   active_count: number;
+  scheduled_count: number;
+  status: "pending" | "approved";
+  suggested_time: string | null;
+}
+
+export interface UserOption {
+  id: number;
+  displayName: string;
+}
+
+export interface ScheduleEntry {
+  id: number;
+  challenge_id: number;
+  challenge_title: string;
+  challenge_emoji: string;
+  send_at: string;
+  target_type: "random" | "all" | "user";
+  target_user_id: number | null;
+  target_display_name: string | null;
+  status: "scheduled" | "sending" | "sent" | "canceled" | "failed";
+  error: string | null;
+  sent_at: string | null;
 }

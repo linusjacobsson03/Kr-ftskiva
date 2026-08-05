@@ -30,9 +30,6 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "Kräftskiva",
   },
-  other: {
-    "mobile-web-app-capable": "yes",
-  },
 };
 
 export const viewport: Viewport = {

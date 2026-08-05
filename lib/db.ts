@@ -120,12 +120,58 @@ const SCHEMA_STATEMENTS = [
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   )`,
+
+  `CREATE TABLE IF NOT EXISTS challenge_schedule (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    challenge_id INTEGER NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
+    send_at TEXT NOT NULL,
+    target_type TEXT NOT NULL DEFAULT 'random',
+    target_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'scheduled',
+    error TEXT,
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    sent_at TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_schedule_due ON challenge_schedule(status, send_at)`,
 ];
+
+/**
+ * Adds a column to an existing table if it isn't there yet. Plain
+ * `ALTER TABLE ADD COLUMN` isn't idempotent like `CREATE TABLE IF NOT
+ * EXISTS`, so this checks first — safe to call on every boot, existing rows
+ * get the column's default, i.e. rows created before a given feature existed
+ * stay visible/usable exactly as before.
+ */
+async function ensureColumn(table: string, column: string, ddl: string): Promise<void> {
+  const client = getClient();
+  const info = await client.execute(`PRAGMA table_info(${table})`);
+  const hasColumn = info.rows.some(
+    (row) => (row as unknown as { name: string }).name === column
+  );
+  if (!hasColumn) {
+    await client.execute(ddl);
+  }
+}
+
+async function ensureMigrations(): Promise<void> {
+  await ensureColumn(
+    "challenges",
+    "status",
+    `ALTER TABLE challenges ADD COLUMN status TEXT NOT NULL DEFAULT 'approved'`
+  );
+  await ensureColumn(
+    "challenges",
+    "suggested_time",
+    `ALTER TABLE challenges ADD COLUMN suggested_time TEXT`
+  );
+}
 
 function getReady(): Promise<void> {
   if (!global.__kraftskivaReady) {
     global.__kraftskivaReady = getClient()
       .migrate(SCHEMA_STATEMENTS)
+      .then(() => ensureMigrations())
       .then(() => undefined)
       .catch((err) => {
         // Let the next call try again instead of permanently caching a failure.
@@ -238,6 +284,21 @@ export interface ChallengeRow {
   emoji: string;
   created_by: number | null;
   created_at: string;
+  status: "pending" | "approved";
+  suggested_time: string | null;
+}
+
+export interface ScheduleRow {
+  id: number;
+  challenge_id: number;
+  send_at: string;
+  target_type: "random" | "all" | "user";
+  target_user_id: number | null;
+  status: "scheduled" | "sending" | "sent" | "canceled" | "failed";
+  error: string | null;
+  created_by: number | null;
+  created_at: string;
+  sent_at: string | null;
 }
 
 export interface AssignmentRow {
@@ -250,6 +311,20 @@ export interface AssignmentRow {
   photo_data: string | null;
   completed_at: string | null;
   points_awarded: number;
+}
+
+/** Every challenge gets the same 5-minute window to submit photo proof. */
+export const CHALLENGE_DURATION_SECONDS = 300;
+
+/**
+ * Formats a JS Date as sqlite's `datetime('now')` does — UTC,
+ * "YYYY-MM-DD HH:MM:SS", no offset/fractional seconds — so a stored value
+ * can be compared with `<=` against `datetime('now')` in SQL. (Other
+ * timestamps in this app are produced directly in SQL; this one starts as a
+ * JS Date from the admin's time picker, so it needs converting here.)
+ */
+export function toSqliteDatetime(date: Date): string {
+  return date.toISOString().slice(0, 19).replace("T", " ");
 }
 
 export async function userCount(): Promise<number> {

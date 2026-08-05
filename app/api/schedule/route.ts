@@ -1,0 +1,65 @@
+import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
+import { getAll } from "@/lib/db";
+import { apiError } from "@/lib/apiError";
+
+interface ScheduleQueryRow {
+  id: number;
+  challenge_id: number;
+  challenge_title: string;
+  challenge_emoji: string;
+  send_at: string;
+  target_type: "random" | "all" | "user";
+  target_user_id: number | null;
+  target_first_name: string | null;
+  target_last_name: string | null;
+  status: "scheduled" | "sending" | "sent" | "canceled" | "failed";
+  error: string | null;
+  sent_at: string | null;
+}
+
+export async function GET() {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Ej inloggad." }, { status: 401 });
+    }
+    if (!user.is_admin) {
+      return NextResponse.json({ error: "Ingen behörighet." }, { status: 403 });
+    }
+
+    const rows = await getAll<ScheduleQueryRow>(
+      `SELECT s.id, s.challenge_id, c.title as challenge_title, c.emoji as challenge_emoji,
+              s.send_at, s.target_type, s.target_user_id,
+              u.first_name as target_first_name, u.last_name as target_last_name,
+              s.status, s.error, s.sent_at
+       FROM challenge_schedule s
+       JOIN challenges c ON c.id = s.challenge_id
+       LEFT JOIN users u ON u.id = s.target_user_id
+       ORDER BY s.send_at ASC`
+    );
+
+    const schedule = rows.map((r) => ({
+      id: r.id,
+      challenge_id: r.challenge_id,
+      challenge_title: r.challenge_title,
+      challenge_emoji: r.challenge_emoji,
+      // Stored as sqlite UTC "YYYY-MM-DD HH:MM:SS" — normalize to real ISO
+      // for the client, same convention as /api/challenges/active.
+      send_at: new Date(r.send_at.replace(" ", "T") + "Z").toISOString(),
+      target_type: r.target_type,
+      target_user_id: r.target_user_id,
+      target_display_name:
+        r.target_first_name && r.target_last_name
+          ? `${r.target_first_name} ${r.target_last_name}`
+          : null,
+      status: r.status,
+      error: r.error,
+      sent_at: r.sent_at ? new Date(r.sent_at.replace(" ", "T") + "Z").toISOString() : null,
+    }));
+
+    return NextResponse.json({ schedule });
+  } catch (err) {
+    return apiError(err);
+  }
+}
