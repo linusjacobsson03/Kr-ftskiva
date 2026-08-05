@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { run, userCount, getOne, UserRow } from "@/lib/db";
+import { getAll, run, userCount, getOne, UserRow } from "@/lib/db";
 import {
   createSessionToken,
   sanitizeUser,
@@ -50,6 +50,27 @@ export async function POST(request: Request) {
   }
 
   try {
+    // Names aren't unique on purpose (two "Anna Andersson" can both be at
+    // the party, told apart by password — see app/api/login/route.ts) but
+    // the exact same name *and* password is the same account already
+    // existing, not a second person. Block that specific combination so you
+    // can't accidentally (or repeatedly) re-register yourself.
+    const sameName = await getAll<UserRow>(
+      "SELECT * FROM users WHERE lower(first_name) = lower(?) AND lower(last_name) = lower(?)",
+      [firstName, lastName]
+    );
+    for (const existing of sameName) {
+      if (await bcrypt.compare(password, existing.password_hash)) {
+        return NextResponse.json(
+          {
+            error:
+              "Det kontot finns redan. Logga in istället, eller välj ett annat lösenord om ni råkar heta samma.",
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const passwordHash = await bcrypt.hash(password, 10);
     const isFirstUser = (await userCount()) === 0;
     const avatarEmoji = AVATAR_EMOJIS[Math.floor(Math.random() * AVATAR_EMOJIS.length)];

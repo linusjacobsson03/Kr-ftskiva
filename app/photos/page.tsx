@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, ImagePlus, Trash2, X } from "lucide-react";
+import { Camera, ImagePlus, Images, Trash2, X } from "lucide-react";
 import AuthGate from "../components/AuthGate";
 import Avatar from "../components/Avatar";
+import CameraCapture from "../components/CameraCapture";
 import { useAuth } from "../providers";
 import { fileToCompressedDataUrl } from "@/lib/compressImage";
 import type { PhotoItem } from "@/lib/types";
@@ -26,6 +27,7 @@ function PhotosContent() {
   const [caption, setCaption] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -85,6 +87,15 @@ function PhotosContent() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-7">
+      {showCamera && (
+        <CameraCapture
+          onCapture={(dataUrl) => {
+            setPreview(dataUrl);
+            setShowCamera(false);
+          }}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
       <div>
         <h1 className="font-display text-2xl font-medium text-cream">Dagens foton</h1>
         <p className="mt-0.5 text-sm text-muted">Dela bilder från kvällen med hela gänget</p>
@@ -122,19 +133,31 @@ function PhotosContent() {
             </div>
           </div>
         ) : (
-          <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/[0.14] py-9 text-center transition hover:border-accent/40 hover:bg-accent/[0.03]">
+          <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-white/[0.14] py-9 text-center">
             <ImagePlus size={26} strokeWidth={1.25} className="text-accent-strong" />
             <span className="text-sm font-medium text-cream">Lägg till ett foto</span>
-            <span className="text-xs text-muted">Tryck för kamera eller galleri</span>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={onFileChange}
-            />
-          </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCamera(true)}
+                className="btn-primary text-sm"
+              >
+                <Camera size={16} strokeWidth={1.75} />
+                Ta foto
+              </button>
+              <label className="btn-secondary cursor-pointer text-sm">
+                <Images size={16} strokeWidth={1.75} />
+                Galleri
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={onFileChange}
+                />
+              </label>
+            </div>
+          </div>
         )}
         {error && <p className="text-sm text-danger">{error}</p>}
       </div>

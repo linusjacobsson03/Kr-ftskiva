@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, CheckCircle2, Clock, ImageOff } from "lucide-react";
+import { Camera, CheckCircle2, Clock, ImageOff, Images } from "lucide-react";
 import AuthGate from "../components/AuthGate";
 import Avatar from "../components/Avatar";
+import CameraCapture from "../components/CameraCapture";
 import Countdown from "../components/Countdown";
 import { useAuth } from "../providers";
 import { fileToCompressedDataUrl } from "@/lib/compressImage";
@@ -29,15 +30,13 @@ function ChallengeCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<number | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function submitPhoto(imageData: string) {
     setBusy(true);
     setError(null);
     try {
-      const imageData = await fileToCompressedDataUrl(file);
       const res = await fetch(`/api/challenges/assignments/${assignment.id}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -55,6 +54,18 @@ function ChallengeCard({
       setError("Nätverksfel, testa igen.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const imageData = await fileToCompressedDataUrl(file);
+      await submitPhoto(imageData);
+    } catch {
+      setError("Kunde inte läsa bilden, testa en annan.");
+    } finally {
       if (inputRef.current) inputRef.current.value = "";
     }
   }
@@ -72,6 +83,15 @@ function ChallengeCard({
 
   return (
     <div className="card space-y-3 border-l-2 border-l-accent bg-accent/[0.04] p-4">
+      {showCamera && (
+        <CameraCapture
+          onCapture={(dataUrl) => {
+            setShowCamera(false);
+            submitPhoto(dataUrl);
+          }}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
       <div className="flex items-start justify-between gap-3">
         <p className="font-display text-lg font-medium text-cream">
           <span className="mr-1.5">{assignment.emoji}</span>
@@ -88,19 +108,28 @@ function ChallengeCard({
       )}
       <p className="chip">Värd {assignment.points} poäng</p>
 
-      <label className="btn-primary flex w-full cursor-pointer items-center justify-center gap-2">
-        <Camera size={17} strokeWidth={1.75} />
-        {busy ? "Skickar…" : "Ta bildbevis nu"}
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setShowCamera(true)}
           disabled={busy}
-          onChange={onFile}
-        />
-      </label>
+          className="btn-primary flex-1"
+        >
+          <Camera size={17} strokeWidth={1.75} />
+          {busy ? "Skickar…" : "Ta bildbevis nu"}
+        </button>
+        <label className="btn-secondary cursor-pointer">
+          <Images size={17} strokeWidth={1.75} />
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            disabled={busy}
+            onChange={onFile}
+          />
+        </label>
+      </div>
       {error && <p className="text-sm text-danger">{error}</p>}
     </div>
   );
