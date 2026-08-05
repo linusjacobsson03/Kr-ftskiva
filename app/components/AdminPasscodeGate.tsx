@@ -30,14 +30,27 @@ export default function AdminPasscodeGate({ children }: { children: React.ReactN
       const res = await fetch("/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ passcode }),
+        // Leading/trailing whitespace is a common phone-keyboard accident
+        // (autocomplete, a trailing space from swipe-typing) — trimmed here
+        // so it doesn't cause a confusing silent mismatch. Not trimmed
+        // internally, so "Lillen 03" still correctly fails as a different
+        // passcode than "Lillen03".
+        body: JSON.stringify({ passcode: passcode.trim() }),
       });
-      const data = await res.json();
+      let data: { error?: string; ok?: boolean };
+      try {
+        data = await res.json();
+      } catch {
+        setError("Oväntat svar från servern, testa igen.");
+        return;
+      }
       if (!res.ok) {
         setError(data.error || "Fel lösenord.");
         return;
       }
       setUnlocked(true);
+    } catch {
+      setError("Kunde inte nå servern, testa igen.");
     } finally {
       setBusy(false);
     }
@@ -70,6 +83,10 @@ export default function AdminPasscodeGate({ children }: { children: React.ReactN
               value={passcode}
               onChange={(e) => setPasscode(e.target.value)}
               autoFocus
+              autoComplete="current-password"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
               required
             />
             {error && <p className="text-sm text-danger">{error}</p>}
