@@ -8,6 +8,7 @@ import {
   SESSION_COOKIE,
   cleanNamePart,
 } from "@/lib/auth";
+import { apiError } from "@/lib/apiError";
 
 const AVATAR_EMOJIS = ["🦞", "🦀", "🎉", "🌙", "🍺", "⭐", "🎈", "🥳", "🦐", "🌊"];
 const NAME_PATTERN = /^[\p{L} '.-]+$/u;
@@ -48,25 +49,29 @@ export async function POST(request: Request) {
     );
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
-  const isFirstUser = (await userCount()) === 0;
-  const avatarEmoji = AVATAR_EMOJIS[Math.floor(Math.random() * AVATAR_EMOJIS.length)];
+  try {
+    const passwordHash = await bcrypt.hash(password, 10);
+    const isFirstUser = (await userCount()) === 0;
+    const avatarEmoji = AVATAR_EMOJIS[Math.floor(Math.random() * AVATAR_EMOJIS.length)];
 
-  const result = await run(
-    `INSERT INTO users (first_name, last_name, password_hash, is_admin, avatar_emoji)
-     VALUES (?, ?, ?, ?, ?)`,
-    [firstName, lastName, passwordHash, isFirstUser ? 1 : 0, avatarEmoji]
-  );
+    const result = await run(
+      `INSERT INTO users (first_name, last_name, password_hash, is_admin, avatar_emoji)
+       VALUES (?, ?, ?, ?, ?)`,
+      [firstName, lastName, passwordHash, isFirstUser ? 1 : 0, avatarEmoji]
+    );
 
-  const user = await getOne<UserRow>("SELECT * FROM users WHERE id = ?", [
-    result.lastInsertRowid,
-  ]);
-  if (!user) {
-    return NextResponse.json({ error: "Något gick fel, testa igen." }, { status: 500 });
+    const user = await getOne<UserRow>("SELECT * FROM users WHERE id = ?", [
+      result.lastInsertRowid,
+    ]);
+    if (!user) {
+      return NextResponse.json({ error: "Något gick fel, testa igen." }, { status: 500 });
+    }
+
+    const token = await createSessionToken(user.id);
+    const response = NextResponse.json({ user: sanitizeUser(user) }, { status: 201 });
+    response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
+    return response;
+  } catch (err) {
+    return apiError(err, "Kunde inte skapa kontot, testa igen.");
   }
-
-  const token = await createSessionToken(user.id);
-  const response = NextResponse.json({ user: sanitizeUser(user) }, { status: 201 });
-  response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
-  return response;
 }

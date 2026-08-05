@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getAll, runBatch } from "@/lib/db";
+import { apiError } from "@/lib/apiError";
 
 const DEFAULT_CHALLENGES = [
   {
@@ -76,26 +77,30 @@ const DEFAULT_CHALLENGES = [
 ];
 
 export async function POST() {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "Ej inloggad." }, { status: 401 });
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Ej inloggad." }, { status: 401 });
+    }
+    if (!user.is_admin) {
+      return NextResponse.json({ error: "Ingen behörighet." }, { status: 403 });
+    }
+
+    const existing = await getAll<{ title: string }>("SELECT title FROM challenges");
+    const existingTitles = new Set(existing.map((r) => r.title));
+
+    const toInsert = DEFAULT_CHALLENGES.filter((c) => !existingTitles.has(c.title));
+
+    await runBatch(
+      toInsert.map((c) => ({
+        sql: `INSERT INTO challenges (title, description, points, duration_seconds, emoji, created_by)
+              VALUES (?, ?, ?, ?, ?, ?)`,
+        args: [c.title, c.description, c.points, c.duration_seconds, c.emoji, user.id],
+      }))
+    );
+
+    return NextResponse.json({ added: toInsert.length });
+  } catch (err) {
+    return apiError(err);
   }
-  if (!user.is_admin) {
-    return NextResponse.json({ error: "Ingen behörighet." }, { status: 403 });
-  }
-
-  const existing = await getAll<{ title: string }>("SELECT title FROM challenges");
-  const existingTitles = new Set(existing.map((r) => r.title));
-
-  const toInsert = DEFAULT_CHALLENGES.filter((c) => !existingTitles.has(c.title));
-
-  await runBatch(
-    toInsert.map((c) => ({
-      sql: `INSERT INTO challenges (title, description, points, duration_seconds, emoji, created_by)
-            VALUES (?, ?, ?, ?, ?, ?)`,
-      args: [c.title, c.description, c.points, c.duration_seconds, c.emoji, user.id],
-    }))
-  );
-
-  return NextResponse.json({ added: toInsert.length });
 }

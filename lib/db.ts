@@ -1,6 +1,7 @@
 import { createClient, type Client } from "@libsql/client";
 import path from "node:path";
 import fs from "node:fs";
+import os from "node:os";
 
 /**
  * Database access for Kräftskiva.
@@ -10,33 +11,55 @@ import fs from "node:fs";
  * In production, set TURSO_DATABASE_URL + TURSO_AUTH_TOKEN to a free Turso
  * database (https://turso.tech) and the exact same code talks to that
  * hosted, persistent database instead. See README.md for setup.
+ *
+ * Everything below is built lazily and defensively on purpose: this module
+ * is imported by nearly every route (via lib/auth.ts), so if client setup
+ * ever threw synchronously at import time, it would take down every route
+ * in the app — including ones that never touch the database (e.g. /api/me
+ * with no session cookie). Bad/missing Turso credentials should only ever
+ * break the specific request that needed the database, with a clear error.
  */
-
-const dataDir = path.join(process.cwd(), "data");
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
-const localDbPath = process.env.DATABASE_PATH || path.join(dataDir, "kraftskiva.db");
 
 declare global {
   var __kraftskivaClient: Client | undefined;
   var __kraftskivaReady: Promise<void> | undefined;
 }
 
-const client: Client =
-  global.__kraftskivaClient ??
-  (process.env.TURSO_DATABASE_URL
-    ? createClient({
-        url: process.env.TURSO_DATABASE_URL,
-        authToken: process.env.TURSO_AUTH_TOKEN,
-      })
-    : // A generous busy timeout avoids SQLITE_BUSY errors when multiple
-      // processes (e.g. Next.js build workers) touch the local file at once.
-      // Ignored for remote Turso connections.
-      createClient({ url: `file:${localDbPath}`, timeout: 5000 }));
+function resolveLocalDbPath(): string {
+  if (process.env.DATABASE_PATH) return process.env.DATABASE_PATH;
+  // Prefer a folder next to the project so it's easy to find in local dev,
+  // but fall back to the OS temp dir if that location isn't writable (e.g.
+  // an unexpected read-only deployment without Turso configured) so we at
+  // least degrade to "works until restart" instead of crashing outright.
+  const preferred = path.join(process.cwd(), "data");
+  try {
+    fs.mkdirSync(preferred, { recursive: true });
+    return path.join(preferred, "kraftskiva.db");
+  } catch {
+    const fallback = path.join(os.tmpdir(), "kraftskiva-data");
+    fs.mkdirSync(fallback, { recursive: true });
+    return path.join(fallback, "kraftskiva.db");
+  }
+}
 
-if (process.env.NODE_ENV !== "production") {
-  global.__kraftskivaClient = client;
+function createDbClient(): Client {
+  if (process.env.TURSO_DATABASE_URL) {
+    return createClient({
+      url: process.env.TURSO_DATABASE_URL,
+      authToken: process.env.TURSO_AUTH_TOKEN,
+    });
+  }
+  // A generous busy timeout avoids SQLITE_BUSY errors when multiple
+  // processes (e.g. Next.js build workers) touch the local file at once.
+  // Ignored for remote Turso connections.
+  return createClient({ url: `file:${resolveLocalDbPath()}`, timeout: 5000 });
+}
+
+function getClient(): Client {
+  if (!global.__kraftskivaClient) {
+    global.__kraftskivaClient = createDbClient();
+  }
+  return global.__kraftskivaClient;
 }
 
 const SCHEMA_STATEMENTS = [
@@ -99,13 +122,30 @@ const SCHEMA_STATEMENTS = [
   )`,
 ];
 
-function initSchema(): Promise<void> {
-  return client.migrate(SCHEMA_STATEMENTS).then(() => undefined);
+function getReady(): Promise<void> {
+  if (!global.__kraftskivaReady) {
+    global.__kraftskivaReady = getClient()
+      .migrate(SCHEMA_STATEMENTS)
+      .then(() => undefined)
+      .catch((err) => {
+        // Let the next call try again instead of permanently caching a failure.
+        global.__kraftskivaReady = undefined;
+        throw wrapDbError(err);
+      });
+  }
+  return global.__kraftskivaReady;
 }
 
-const ready: Promise<void> = global.__kraftskivaReady ?? initSchema();
-if (process.env.NODE_ENV !== "production") {
-  global.__kraftskivaReady = ready;
+/** Adds a clear, actionable message on top of raw libSQL/network errors. */
+function wrapDbError(err: unknown): Error {
+  const message = err instanceof Error ? err.message : String(err);
+  const usingTurso = !!process.env.TURSO_DATABASE_URL;
+  const hint = usingTurso
+    ? "Kunde inte nå Turso-databasen. Kontrollera att TURSO_DATABASE_URL och TURSO_AUTH_TOKEN är korrekt satta (utan citattecken) och att appen har byggts om efter att de lades till."
+    : "Kunde inte öppna den lokala databasfilen.";
+  const wrapped = new Error(`${hint} (${message})`);
+  wrapped.cause = err;
+  return wrapped;
 }
 
 type SqlArg = string | number | boolean | null | undefined;
@@ -114,9 +154,16 @@ export async function getAll<T = Record<string, unknown>>(
   sql: string,
   args: SqlArg[] = []
 ): Promise<T[]> {
-  await ready;
-  const res = await client.execute({ sql, args: args as (string | number | boolean | null)[] });
-  return res.rows as unknown as T[];
+  await getReady();
+  try {
+    const res = await getClient().execute({
+      sql,
+      args: args as (string | number | boolean | null)[],
+    });
+    return res.rows as unknown as T[];
+  } catch (err) {
+    throw wrapDbError(err);
+  }
 }
 
 export async function getOne<T = Record<string, unknown>>(
@@ -131,24 +178,36 @@ export async function run(
   sql: string,
   args: SqlArg[] = []
 ): Promise<{ lastInsertRowid: number; changes: number }> {
-  await ready;
-  const res = await client.execute({ sql, args: args as (string | number | boolean | null)[] });
-  return { lastInsertRowid: Number(res.lastInsertRowid ?? 0), changes: res.rowsAffected };
+  await getReady();
+  try {
+    const res = await getClient().execute({
+      sql,
+      args: args as (string | number | boolean | null)[],
+    });
+    return { lastInsertRowid: Number(res.lastInsertRowid ?? 0), changes: res.rowsAffected };
+  } catch (err) {
+    throw wrapDbError(err);
+  }
 }
 
 /** Runs several statements atomically (all-or-nothing) in one round trip. */
 export async function runBatch(
   statements: { sql: string; args?: SqlArg[] }[]
 ): Promise<void> {
-  await ready;
+  await getReady();
   if (statements.length === 0) return;
-  await client.batch(
-    statements.map((s) => ({ sql: s.sql, args: (s.args ?? []) as (string | number | boolean | null)[] })),
-    "write"
-  );
+  try {
+    await getClient().batch(
+      statements.map((s) => ({
+        sql: s.sql,
+        args: (s.args ?? []) as (string | number | boolean | null)[],
+      })),
+      "write"
+    );
+  } catch (err) {
+    throw wrapDbError(err);
+  }
 }
-
-export default client;
 
 // ---------- Types ----------
 

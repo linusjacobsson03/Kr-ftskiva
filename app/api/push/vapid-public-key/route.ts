@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { getPublicVapidKey } from "@/lib/push";
+import { apiError } from "@/lib/apiError";
 
 export async function GET() {
-  return NextResponse.json({ publicKey: await getPublicVapidKey() });
+  try {
+    return NextResponse.json({ publicKey: await getPublicVapidKey() });
+  } catch (err) {
+    return apiError(err);
+  }
 }
