@@ -156,7 +156,7 @@ function PhotosContent() {
                 )}
                 <div className="flex items-center justify-between">
                   <p className="text-[10px] text-white/40">{timeAgo(photo.created_at)}</p>
-                  {(user?.username === photo.username || user?.isAdmin) && (
+                  {(user?.id === photo.user_id || user?.isAdmin) && (
                     <button
                       onClick={() => remove(photo.id)}
                       className="text-[10px] text-red-300/80 hover:text-red-300"

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import db from "@/lib/db";
+import { run } from "@/lib/db";
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -13,11 +13,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Ogiltig prenumeration." }, { status: 400 });
   }
 
-  db.prepare(
+  await run(
     `INSERT INTO push_subscriptions (user_id, endpoint, subscription_json)
      VALUES (?, ?, ?)
-     ON CONFLICT(endpoint) DO UPDATE SET user_id = excluded.user_id, subscription_json = excluded.subscription_json`
-  ).run(user.id, subscription.endpoint, JSON.stringify(subscription));
+     ON CONFLICT(endpoint) DO UPDATE SET user_id = excluded.user_id, subscription_json = excluded.subscription_json`,
+    [user.id, subscription.endpoint, JSON.stringify(subscription)]
+  );
 
   return NextResponse.json({ ok: true });
 }
@@ -29,10 +30,10 @@ export async function DELETE(request: Request) {
   }
   const { endpoint } = await request.json();
   if (endpoint) {
-    db.prepare("DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?").run(
+    await run("DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?", [
       endpoint,
-      user.id
-    );
+      user.id,
+    ]);
   }
   return NextResponse.json({ ok: true });
 }

@@ -1,44 +1,48 @@
 import webpush from "web-push";
-import db, { getOrCreateSetting } from "./db";
+import { getAll, getSetting, run, setSetting } from "./db";
 
-function getVapidKeys() {
-  const publicKey =
-    process.env.VAPID_PUBLIC_KEY ||
-    getOrCreateSetting("vapid_public_key", () => {
+let vapidKeysPromise: Promise<{ publicKey: string; privateKey: string }> | null = null;
+
+function loadVapidKeys(): Promise<{ publicKey: string; privateKey: string }> {
+  if (!vapidKeysPromise) {
+    vapidKeysPromise = (async () => {
+      const envPublic = process.env.VAPID_PUBLIC_KEY;
+      const envPrivate = process.env.VAPID_PRIVATE_KEY;
+      if (envPublic && envPrivate) {
+        return { publicKey: envPublic, privateKey: envPrivate };
+      }
+
+      const [storedPublic, storedPrivate] = await Promise.all([
+        getSetting("vapid_public_key"),
+        getSetting("vapid_private_key"),
+      ]);
+      if (storedPublic && storedPrivate) {
+        return { publicKey: storedPublic, privateKey: storedPrivate };
+      }
+
       const keys = webpush.generateVAPIDKeys();
-      // Stash the private key alongside it right away so both are created together.
-      db.prepare(
-        "INSERT INTO settings (key, value) VALUES ('vapid_private_key', ?) ON CONFLICT(key) DO NOTHING"
-      ).run(keys.privateKey);
-      return keys.publicKey;
-    });
-  const privateKey =
-    process.env.VAPID_PRIVATE_KEY ||
-    getOrCreateSetting("vapid_private_key", () => {
-      const keys = webpush.generateVAPIDKeys();
-      db.prepare(
-        "INSERT INTO settings (key, value) VALUES ('vapid_public_key', ?) ON CONFLICT(key) DO NOTHING"
-      ).run(keys.publicKey);
-      return keys.privateKey;
-    });
-  return { publicKey, privateKey };
+      await Promise.all([
+        setSetting("vapid_public_key", keys.publicKey),
+        setSetting("vapid_private_key", keys.privateKey),
+      ]);
+      return keys;
+    })();
+  }
+  return vapidKeysPromise;
 }
 
 let configured = false;
-function ensureConfigured() {
+async function ensureConfigured() {
   if (configured) return;
-  const { publicKey, privateKey } = getVapidKeys();
-  webpush.setVapidDetails(
-    "mailto:party@kraftskiva.local",
-    publicKey,
-    privateKey
-  );
+  const { publicKey, privateKey } = await loadVapidKeys();
+  webpush.setVapidDetails("mailto:party@kraftskiva.local", publicKey, privateKey);
   configured = true;
 }
 
-export function getPublicVapidKey(): string {
-  ensureConfigured();
-  return getVapidKeys().publicKey;
+export async function getPublicVapidKey(): Promise<string> {
+  const { publicKey } = await loadVapidKeys();
+  await ensureConfigured();
+  return publicKey;
 }
 
 export interface PushSubscriptionRow {
@@ -53,10 +57,11 @@ export async function sendPushToUser(
   userId: number,
   payload: { title: string; body: string; url?: string; tag?: string }
 ) {
-  ensureConfigured();
-  const subs = db
-    .prepare("SELECT * FROM push_subscriptions WHERE user_id = ?")
-    .all(userId) as PushSubscriptionRow[];
+  await ensureConfigured();
+  const subs = await getAll<PushSubscriptionRow>(
+    "SELECT * FROM push_subscriptions WHERE user_id = ?",
+    [userId]
+  );
   await Promise.all(subs.map((sub) => sendToSubscription(sub, payload)));
 }
 
@@ -66,10 +71,8 @@ export async function sendPushToAll(payload: {
   url?: string;
   tag?: string;
 }) {
-  ensureConfigured();
-  const subs = db
-    .prepare("SELECT * FROM push_subscriptions")
-    .all() as PushSubscriptionRow[];
+  await ensureConfigured();
+  const subs = await getAll<PushSubscriptionRow>("SELECT * FROM push_subscriptions");
   await Promise.all(subs.map((sub) => sendToSubscription(sub, payload)));
 }
 
@@ -86,7 +89,7 @@ async function sendToSubscription(
     const statusCode = (err as { statusCode?: number })?.statusCode;
     if (statusCode === 404 || statusCode === 410) {
       // Subscription no longer valid (browser unsubscribed / expired).
-      db.prepare("DELETE FROM push_subscriptions WHERE id = ?").run(sub.id);
+      await run("DELETE FROM push_subscriptions WHERE id = ?", [sub.id]);
     } else {
       console.error("Push failed for subscription", sub.id, err);
     }

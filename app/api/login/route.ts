@@ -1,46 +1,47 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import db, { UserRow } from "@/lib/db";
+import { getAll, UserRow } from "@/lib/db";
 import {
   createSessionToken,
   sanitizeUser,
   sessionCookieOptions,
   SESSION_COOKIE,
-  normalizeUsername,
+  cleanNamePart,
 } from "@/lib/auth";
 
+const GENERIC_ERROR = "Fel namn eller lösenord.";
+
 export async function POST(request: Request) {
-  let body: { username?: string; password?: string };
+  let body: { firstName?: string; lastName?: string; password?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Ogiltig förfrågan." }, { status: 400 });
   }
 
-  const username = normalizeUsername((body.username ?? "").toString());
+  const firstName = cleanNamePart((body.firstName ?? "").toString());
+  const lastName = cleanNamePart((body.lastName ?? "").toString());
   const password = (body.password ?? "").toString();
 
-  const user = db
-    .prepare("SELECT * FROM users WHERE username = ?")
-    .get(username) as UserRow | undefined;
-
-  if (!user) {
-    return NextResponse.json(
-      { error: "Fel användarnamn eller lösenord." },
-      { status: 401 }
-    );
+  if (!firstName || !lastName || !password) {
+    return NextResponse.json({ error: GENERIC_ERROR }, { status: 401 });
   }
 
-  const valid = await bcrypt.compare(password, user.password_hash);
-  if (!valid) {
-    return NextResponse.json(
-      { error: "Fel användarnamn eller lösenord." },
-      { status: 401 }
-    );
+  // Names aren't unique (two "Anna Andersson" can both be at the party), so
+  // find every account with that name and let the password disambiguate.
+  const candidates = await getAll<UserRow>(
+    "SELECT * FROM users WHERE lower(first_name) = lower(?) AND lower(last_name) = lower(?)",
+    [firstName, lastName]
+  );
+
+  for (const candidate of candidates) {
+    if (await bcrypt.compare(password, candidate.password_hash)) {
+      const token = await createSessionToken(candidate.id);
+      const response = NextResponse.json({ user: sanitizeUser(candidate) });
+      response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
+      return response;
+    }
   }
 
-  const token = await createSessionToken(user.id);
-  const response = NextResponse.json({ user: sanitizeUser(user) });
-  response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
-  return response;
+  return NextResponse.json({ error: GENERIC_ERROR }, { status: 401 });
 }

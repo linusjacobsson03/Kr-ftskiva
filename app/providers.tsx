@@ -11,7 +11,8 @@ import {
 
 export interface CurrentUser {
   id: number;
-  username: string;
+  firstName: string;
+  lastName: string;
   displayName: string;
   isAdmin: boolean;
   avatarEmoji: string;

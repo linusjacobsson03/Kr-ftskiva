@@ -45,7 +45,7 @@ function LeaderboardContent() {
             <div
               key={entry.id}
               className={`card flex items-center gap-3 p-3 ${
-                entry.username === user?.username ? "border-2 border-amber-400/50" : ""
+                entry.id === user?.id ? "border-2 border-amber-400/50" : ""
               }`}
             >
               <div className="w-8 text-center text-xl font-bold text-white/60">

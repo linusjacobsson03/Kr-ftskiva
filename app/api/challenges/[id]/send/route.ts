@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import db, { ChallengeRow, UserRow } from "@/lib/db";
+import { getAll, getOne, runBatch, ChallengeRow, UserRow } from "@/lib/db";
 import { sendPushToUser } from "@/lib/push";
 
 export async function POST(
@@ -16,9 +16,7 @@ export async function POST(
   }
 
   const { id } = await ctx.params;
-  const challenge = db
-    .prepare("SELECT * FROM challenges WHERE id = ?")
-    .get(id) as ChallengeRow | undefined;
+  const challenge = await getOne<ChallengeRow>("SELECT * FROM challenges WHERE id = ?", [id]);
   if (!challenge) {
     return NextResponse.json({ error: "Utmaningen hittades inte." }, { status: 404 });
   }
@@ -31,7 +29,7 @@ export async function POST(
   }
   const target = body.target === "random" ? "random" : "all";
 
-  const allUsers = db.prepare("SELECT * FROM users").all() as UserRow[];
+  const allUsers = await getAll<UserRow>("SELECT * FROM users");
   if (allUsers.length === 0) {
     return NextResponse.json({ error: "Inga deltagare än." }, { status: 400 });
   }
@@ -41,19 +39,13 @@ export async function POST(
       ? [allUsers[Math.floor(Math.random() * allUsers.length)]]
       : allUsers;
 
-  const insert = db.prepare(
-    `INSERT INTO challenge_assignments (challenge_id, user_id, deadline)
-     VALUES (?, ?, datetime('now', '+' || ? || ' seconds'))`
+  await runBatch(
+    recipients.map((u) => ({
+      sql: `INSERT INTO challenge_assignments (challenge_id, user_id, deadline)
+            VALUES (?, ?, datetime('now', '+' || ? || ' seconds'))`,
+      args: [challenge.id, u.id, challenge.duration_seconds],
+    }))
   );
-
-  const assignedIds: number[] = [];
-  const tx = db.transaction((users: UserRow[]) => {
-    for (const u of users) {
-      const result = insert.run(challenge.id, u.id, challenge.duration_seconds);
-      assignedIds.push(Number(result.lastInsertRowid));
-    }
-  });
-  tx(recipients);
 
   const minutes = Math.round(challenge.duration_seconds / 60);
   const timeLabel =

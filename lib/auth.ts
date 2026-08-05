@@ -1,19 +1,23 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { randomBytes } from "node:crypto";
-import db, { UserRow, getOrCreateSetting } from "./db";
+import { getOne, getOrCreateSetting, UserRow } from "./db";
 
 export const SESSION_COOKIE = "kraftskiva_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days — a party weekend and then some
 
-function getSecret(): Uint8Array {
+let cachedSecret: Uint8Array | null = null;
+
+async function getSecret(): Promise<Uint8Array> {
+  if (cachedSecret) return cachedSecret;
   // Prefer an explicit env var (e.g. when running multiple instances behind
   // a load balancer); otherwise auto-generate one and persist it in the DB
   // so sessions survive restarts without any manual setup.
   const secret =
     process.env.SESSION_SECRET ||
-    getOrCreateSetting("session_secret", () => randomBytes(32).toString("hex"));
-  return new TextEncoder().encode(secret);
+    (await getOrCreateSetting("session_secret", () => randomBytes(32).toString("hex")));
+  cachedSecret = new TextEncoder().encode(secret);
+  return cachedSecret;
 }
 
 export interface SessionPayload {
@@ -26,14 +30,14 @@ export async function createSessionToken(userId: number): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_MAX_AGE_SECONDS}s`)
-    .sign(getSecret());
+    .sign(await getSecret());
 }
 
 export async function verifySessionToken(
   token: string
 ): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, getSecret());
+    const { payload } = await jwtVerify(token, await getSecret());
     if (typeof payload.userId !== "number") return null;
     return payload as SessionPayload;
   } catch {
@@ -41,11 +45,16 @@ export async function verifySessionToken(
   }
 }
 
+export function displayNameOf(user: Pick<UserRow, "first_name" | "last_name">): string {
+  return `${user.first_name} ${user.last_name}`.trim();
+}
+
 export function sanitizeUser(user: UserRow) {
   return {
     id: user.id,
-    username: user.username,
-    displayName: user.display_name,
+    firstName: user.first_name,
+    lastName: user.last_name,
+    displayName: displayNameOf(user),
     isAdmin: !!user.is_admin,
     avatarEmoji: user.avatar_emoji,
     createdAt: user.created_at,
@@ -59,9 +68,7 @@ export async function getCurrentUser(): Promise<UserRow | null> {
   if (!token) return null;
   const payload = await verifySessionToken(token);
   if (!payload) return null;
-  const user = db
-    .prepare("SELECT * FROM users WHERE id = ?")
-    .get(payload.userId) as UserRow | undefined;
+  const user = await getOne<UserRow>("SELECT * FROM users WHERE id = ?", [payload.userId]);
   return user ?? null;
 }
 
@@ -73,6 +80,7 @@ export const sessionCookieOptions = {
   maxAge: SESSION_MAX_AGE_SECONDS,
 };
 
-export function normalizeUsername(raw: string): string {
-  return raw.trim().toLowerCase().replace(/\s+/g, "");
+/** Trims and collapses internal whitespace — used before storing or matching name parts. */
+export function cleanNamePart(raw: string): string {
+  return raw.trim().replace(/\s+/g, " ");
 }

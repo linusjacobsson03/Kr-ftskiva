@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import db, { AssignmentRow, ChallengeRow } from "@/lib/db";
+import { getOne, run, AssignmentRow, ChallengeRow } from "@/lib/db";
 
 export async function POST(
   request: Request,
@@ -12,9 +12,10 @@ export async function POST(
   }
 
   const { id } = await ctx.params;
-  const assignment = db
-    .prepare("SELECT * FROM challenge_assignments WHERE id = ?")
-    .get(id) as AssignmentRow | undefined;
+  const assignment = await getOne<AssignmentRow>(
+    "SELECT * FROM challenge_assignments WHERE id = ?",
+    [id]
+  );
 
   if (!assignment || assignment.user_id !== user.id) {
     return NextResponse.json({ error: "Hittades inte." }, { status: 404 });
@@ -31,9 +32,9 @@ export async function POST(
   // Stored via sqlite's datetime('now', ...) as UTC "YYYY-MM-DD HH:MM:SS".
   const deadline = new Date(assignment.deadline.replace(" ", "T") + "Z");
   if (now > deadline) {
-    db.prepare(
-      "UPDATE challenge_assignments SET status = 'expired' WHERE id = ?"
-    ).run(assignment.id);
+    await run("UPDATE challenge_assignments SET status = 'expired' WHERE id = ?", [
+      assignment.id,
+    ]);
     return NextResponse.json({ error: "Tiden är tyvärr ute!" }, { status: 410 });
   }
 
@@ -51,15 +52,19 @@ export async function POST(
     );
   }
 
-  const challenge = db
-    .prepare("SELECT * FROM challenges WHERE id = ?")
-    .get(assignment.challenge_id) as ChallengeRow;
+  const challenge = await getOne<ChallengeRow>("SELECT * FROM challenges WHERE id = ?", [
+    assignment.challenge_id,
+  ]);
+  if (!challenge) {
+    return NextResponse.json({ error: "Utmaningen finns inte längre." }, { status: 404 });
+  }
 
-  db.prepare(
+  await run(
     `UPDATE challenge_assignments
      SET status = 'completed', photo_data = ?, completed_at = datetime('now'), points_awarded = ?
-     WHERE id = ?`
-  ).run(imageData, challenge.points, assignment.id);
+     WHERE id = ?`,
+    [imageData, challenge.points, assignment.id]
+  );
 
   return NextResponse.json({ ok: true, pointsAwarded: challenge.points });
 }

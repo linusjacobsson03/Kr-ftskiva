@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import db from "@/lib/db";
+import { getAll, getOne, run } from "@/lib/db";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -11,15 +11,13 @@ export async function GET() {
     return NextResponse.json({ error: "Ingen behörighet." }, { status: 403 });
   }
 
-  const challenges = db
-    .prepare(
-      `SELECT c.*,
-        (SELECT COUNT(*) FROM challenge_assignments a WHERE a.challenge_id = c.id) as times_sent,
-        (SELECT COUNT(*) FROM challenge_assignments a WHERE a.challenge_id = c.id AND a.status = 'pending') as active_count
-       FROM challenges c
-       ORDER BY c.created_at DESC`
-    )
-    .all();
+  const challenges = await getAll(
+    `SELECT c.*,
+      (SELECT COUNT(*) FROM challenge_assignments a WHERE a.challenge_id = c.id) as times_sent,
+      (SELECT COUNT(*) FROM challenge_assignments a WHERE a.challenge_id = c.id AND a.status = 'pending') as active_count
+     FROM challenges c
+     ORDER BY c.created_at DESC`
+  );
 
   return NextResponse.json({ challenges });
 }
@@ -59,16 +57,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Ge utmaningen en titel." }, { status: 400 });
   }
 
-  const result = db
-    .prepare(
-      `INSERT INTO challenges (title, description, points, duration_seconds, emoji, created_by)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    )
-    .run(title, description, points, durationSeconds, emoji, user.id);
+  const result = await run(
+    `INSERT INTO challenges (title, description, points, duration_seconds, emoji, created_by)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [title, description, points, durationSeconds, emoji, user.id]
+  );
 
-  const challenge = db
-    .prepare("SELECT * FROM challenges WHERE id = ?")
-    .get(result.lastInsertRowid);
+  const challenge = await getOne("SELECT * FROM challenges WHERE id = ?", [
+    result.lastInsertRowid,
+  ]);
 
   return NextResponse.json({ challenge }, { status: 201 });
 }

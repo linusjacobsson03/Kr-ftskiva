@@ -8,6 +8,6 @@ export async function GET() {
     return NextResponse.json({ user: null }, { status: 200 });
   }
   return NextResponse.json({
-    user: { ...sanitizeUser(user), points: getUserPoints(user.id) },
+    user: { ...sanitizeUser(user), points: await getUserPoints(user.id) },
   });
 }

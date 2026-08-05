@@ -8,8 +8,8 @@ export default function LoginPage() {
   const { user, loading, refresh } = useAuth();
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "register">("register");
-  const [username, setUsername] = useState("");
-  const [displayName, setDisplayName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -28,7 +28,7 @@ export default function LoginPage() {
       const res = await fetch(`/api/${mode === "login" ? "login" : "register"}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, displayName }),
+        body: JSON.stringify({ firstName, lastName, password }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -83,35 +83,33 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={submit} className="space-y-3">
-          {mode === "register" && (
-            <div>
+          <div className="flex gap-3">
+            <div className="flex-1">
               <label className="mb-1 block text-xs font-medium text-white/60">
-                Namn (visas för andra)
+                Förnamn
               </label>
               <input
                 className="input-field"
-                placeholder="T.ex. Linus"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Linus"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
                 maxLength={40}
                 required
               />
             </div>
-          )}
-          <div>
-            <label className="mb-1 block text-xs font-medium text-white/60">
-              Användarnamn
-            </label>
-            <input
-              className="input-field"
-              placeholder="anvandarnamn"
-              value={username}
-              autoCapitalize="off"
-              autoCorrect="off"
-              onChange={(e) => setUsername(e.target.value)}
-              maxLength={24}
-              required
-            />
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-medium text-white/60">
+                Efternamn
+              </label>
+              <input
+                className="input-field"
+                placeholder="Jacobsson"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                maxLength={40}
+                required
+              />
+            </div>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-white/60">

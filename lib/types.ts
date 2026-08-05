@@ -37,19 +37,18 @@ export interface LeaderboardEntry {
   id: number;
   display_name: string;
   avatar_emoji: string;
-  username: string;
   points: number;
   challenges_completed: number;
 }
 
 export interface PhotoItem {
   id: number;
+  user_id: number;
   caption: string;
   image_data: string;
   created_at: string;
   display_name: string;
   avatar_emoji: string;
-  username: string;
 }
 
 export interface ChallengeTemplate {
