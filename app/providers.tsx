@@ -15,7 +15,6 @@ export interface CurrentUser {
   lastName: string;
   displayName: string;
   isAdmin: boolean;
-  avatarEmoji: string;
   points: number;
 }
 

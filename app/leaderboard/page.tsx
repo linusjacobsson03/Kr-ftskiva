@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Trophy } from "lucide-react";
 import AuthGate from "../components/AuthGate";
+import Avatar from "../components/Avatar";
 import { useAuth } from "../providers";
 import type { LeaderboardEntry } from "@/lib/types";
-
-const MEDALS = ["🥇", "🥈", "🥉"];
 
 function LeaderboardContent() {
   const { user } = useAuth();
@@ -31,38 +31,44 @@ function LeaderboardContent() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-xl space-y-5 px-4 py-6">
+    <div className="mx-auto max-w-xl space-y-6 px-4 py-7">
       <div>
-        <h1 className="text-2xl font-extrabold">🏆 Topplista</h1>
-        <p className="text-white/60">Vem tar hem kvällens kräftbukal?</p>
+        <h1 className="font-display text-2xl font-medium text-cream">Topplista</h1>
+        <p className="mt-0.5 text-sm text-muted">Vem tar hem kvällens kräftbukal?</p>
       </div>
 
       {loading ? (
-        <p className="text-center text-white/50">Laddar…</p>
+        <p className="text-center text-sm text-muted">Laddar…</p>
       ) : (
         <div className="space-y-2">
-          {entries.map((entry, i) => (
-            <div
-              key={entry.id}
-              className={`card flex items-center gap-3 p-3 ${
-                entry.id === user?.id ? "border-2 border-amber-400/50" : ""
-              }`}
-            >
-              <div className="w-8 text-center text-xl font-bold text-white/60">
-                {MEDALS[i] ?? i + 1}
+          {entries.map((entry, i) => {
+            const rank = i + 1;
+            const isTop = rank === 1 && entry.points > 0;
+            const isMe = entry.id === user?.id;
+            return (
+              <div
+                key={entry.id}
+                className={`card flex items-center gap-3.5 p-3.5 ${
+                  isTop ? "border-accent/30 bg-accent/[0.05]" : ""
+                } ${isMe ? "border-l-2 border-l-accent" : ""}`}
+              >
+                <div className="font-display w-6 text-center text-lg text-muted">{rank}</div>
+                <Avatar name={entry.display_name} size={34} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-cream">{entry.display_name}</p>
+                  <p className="text-xs text-muted">
+                    {entry.challenges_completed} utmaningar klara
+                  </p>
+                </div>
+                {isTop && <Trophy size={16} strokeWidth={1.5} className="text-accent-strong" />}
+                <div className="font-display tabular text-xl font-medium text-accent-strong">
+                  {entry.points}
+                </div>
               </div>
-              <div className="text-2xl">{entry.avatar_emoji}</div>
-              <div className="flex-1">
-                <p className="font-semibold">{entry.display_name}</p>
-                <p className="text-xs text-white/50">
-                  {entry.challenges_completed} utmaningar klara
-                </p>
-              </div>
-              <div className="text-xl font-extrabold text-amber-300">{entry.points}</div>
-            </div>
-          ))}
+            );
+          })}
           {entries.length === 0 && (
-            <p className="text-center text-white/50">Inga deltagare än.</p>
+            <p className="text-center text-sm text-muted">Inga deltagare än.</p>
           )}
         </div>
       )}

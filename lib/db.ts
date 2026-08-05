@@ -30,7 +30,10 @@ const client: Client =
         url: process.env.TURSO_DATABASE_URL,
         authToken: process.env.TURSO_AUTH_TOKEN,
       })
-    : createClient({ url: `file:${localDbPath}` }));
+    : // A generous busy timeout avoids SQLITE_BUSY errors when multiple
+      // processes (e.g. Next.js build workers) touch the local file at once.
+      // Ignored for remote Turso connections.
+      createClient({ url: `file:${localDbPath}`, timeout: 5000 }));
 
 if (process.env.NODE_ENV !== "production") {
   global.__kraftskivaClient = client;

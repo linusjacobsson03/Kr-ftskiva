@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Camera, ImagePlus, Trash2, X } from "lucide-react";
 import AuthGate from "../components/AuthGate";
+import Avatar from "../components/Avatar";
 import { useAuth } from "../providers";
 import { fileToCompressedDataUrl } from "@/lib/compressImage";
 import type { PhotoItem } from "@/lib/types";
@@ -82,27 +84,31 @@ function PhotosContent() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5 px-4 py-6">
+    <div className="mx-auto max-w-2xl space-y-6 px-4 py-7">
       <div>
-        <h1 className="text-2xl font-extrabold">📸 Dagens foton</h1>
-        <p className="text-white/60">Dela bilder från kvällen med hela gänget</p>
+        <h1 className="font-display text-2xl font-medium text-cream">Dagens foton</h1>
+        <p className="mt-0.5 text-sm text-muted">Dela bilder från kvällen med hela gänget</p>
       </div>
 
       <div className="card space-y-3 p-4">
         {preview ? (
           <div className="space-y-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={preview} alt="Förhandsvisning" className="max-h-72 w-full rounded-xl object-cover" />
+            <img
+              src={preview}
+              alt="Förhandsvisning"
+              className="max-h-72 w-full rounded-xl object-cover"
+            />
             <input
               className="input-field"
-              placeholder="Skriv en rolig bildtext… (valfritt)"
+              placeholder="Skriv en bildtext… (valfritt)"
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               maxLength={200}
             />
             <div className="flex gap-2">
               <button onClick={upload} disabled={uploading} className="btn-primary flex-1">
-                {uploading ? "Laddar upp…" : "Dela foto 🎉"}
+                {uploading ? "Laddar upp…" : "Dela foto"}
               </button>
               <button
                 onClick={() => {
@@ -111,15 +117,15 @@ function PhotosContent() {
                 }}
                 className="btn-secondary"
               >
-                Avbryt
+                <X size={16} strokeWidth={1.75} />
               </button>
             </div>
           </div>
         ) : (
-          <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/20 py-8 text-center transition hover:border-amber-300/50">
-            <span className="text-4xl">📷</span>
-            <span className="font-semibold">Lägg till ett foto</span>
-            <span className="text-xs text-white/50">Tryck för kamera eller galleri</span>
+          <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/[0.14] py-9 text-center transition hover:border-accent/40 hover:bg-accent/[0.03]">
+            <ImagePlus size={26} strokeWidth={1.25} className="text-accent-strong" />
+            <span className="text-sm font-medium text-cream">Lägg till ett foto</span>
+            <span className="text-xs text-muted">Tryck för kamera eller galleri</span>
             <input
               ref={fileInputRef}
               type="file"
@@ -130,13 +136,16 @@ function PhotosContent() {
             />
           </label>
         )}
-        {error && <p className="text-sm text-red-300">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
       </div>
 
       {loading ? (
-        <p className="text-center text-white/50">Laddar foton…</p>
+        <p className="text-center text-sm text-muted">Laddar foton…</p>
       ) : photos.length === 0 ? (
-        <p className="text-center text-white/50">Inga foton än — bli den första! 🎊</p>
+        <div className="flex flex-col items-center gap-2 py-10 text-center">
+          <Camera size={26} strokeWidth={1.25} className="text-muted" />
+          <p className="text-sm text-muted">Inga foton än — bli den första</p>
+        </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {photos.map((photo) => (
@@ -147,21 +156,25 @@ function PhotosContent() {
                 alt={photo.caption || "Fest-foto"}
                 className="aspect-square w-full object-cover"
               />
-              <div className="space-y-0.5 p-2">
-                <p className="truncate text-xs font-semibold">
-                  {photo.avatar_emoji} {photo.display_name}
-                </p>
+              <div className="space-y-1 p-2.5">
+                <div className="flex items-center gap-1.5">
+                  <Avatar name={photo.display_name} size={16} />
+                  <p className="truncate text-xs font-medium text-cream">
+                    {photo.display_name}
+                  </p>
+                </div>
                 {photo.caption && (
-                  <p className="line-clamp-2 text-xs text-white/70">{photo.caption}</p>
+                  <p className="line-clamp-2 text-xs text-muted">{photo.caption}</p>
                 )}
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] text-white/40">{timeAgo(photo.created_at)}</p>
+                <div className="flex items-center justify-between pt-0.5">
+                  <p className="text-[10px] text-muted/70">{timeAgo(photo.created_at)}</p>
                   {(user?.id === photo.user_id || user?.isAdmin) && (
                     <button
                       onClick={() => remove(photo.id)}
-                      className="text-[10px] text-red-300/80 hover:text-red-300"
+                      aria-label="Ta bort foto"
+                      className="text-muted/70 transition hover:text-danger"
                     >
-                      Ta bort
+                      <Trash2 size={12} strokeWidth={1.75} />
                     </button>
                   )}
                 </div>

@@ -11,7 +11,7 @@ export async function GET() {
   const submissions = await getAll(
     `SELECT a.id, a.photo_data, a.completed_at, a.points_awarded,
       c.title, c.emoji,
-      (u.first_name || ' ' || u.last_name) AS display_name, u.avatar_emoji
+      (u.first_name || ' ' || u.last_name) AS display_name
      FROM challenge_assignments a
      JOIN challenges c ON c.id = a.challenge_id
      JOIN users u ON u.id = a.user_id

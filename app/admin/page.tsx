@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Send, Shuffle, Sparkles } from "lucide-react";
 import AuthGate from "../components/AuthGate";
 import type { ChallengeTemplate } from "@/lib/types";
 
@@ -28,7 +29,7 @@ function ChallengeRow({
         setMessage(data.error || "Kunde inte skicka.");
         return;
       }
-      setMessage(`Skickat till ${data.sentTo} person${data.sentTo === 1 ? "" : "er"}! 🚀`);
+      setMessage(`Skickat till ${data.sentTo} person${data.sentTo === 1 ? "" : "er"}`);
       onSent();
     } finally {
       setBusy(null);
@@ -39,22 +40,21 @@ function ChallengeRow({
   const timeLabel = Number.isInteger(minutes) ? `${minutes} min` : `${challenge.duration_seconds}s`;
 
   return (
-    <div className="card space-y-2 p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="font-bold">
-            {challenge.emoji} {challenge.title}
-          </p>
-          {challenge.description && (
-            <p className="text-sm text-white/60">{challenge.description}</p>
+    <div className="card space-y-3 p-4">
+      <div>
+        <p className="font-medium text-cream">
+          <span className="mr-1.5">{challenge.emoji}</span>
+          {challenge.title}
+        </p>
+        {challenge.description && (
+          <p className="mt-0.5 text-sm text-muted">{challenge.description}</p>
+        )}
+        <p className="mt-1.5 text-xs text-muted/80">
+          {challenge.points}p · {timeLabel} · skickad {challenge.times_sent}x
+          {challenge.active_count > 0 && (
+            <span className="ml-1 text-accent-strong">· {challenge.active_count} aktiv nu</span>
           )}
-          <p className="mt-1 text-xs text-white/40">
-            {challenge.points}p · {timeLabel} · skickad {challenge.times_sent}x
-            {challenge.active_count > 0 && (
-              <span className="ml-1 text-amber-300">· {challenge.active_count} aktiv nu</span>
-            )}
-          </p>
-        </div>
+        </p>
       </div>
       <div className="flex gap-2">
         <button
@@ -62,17 +62,19 @@ function ChallengeRow({
           disabled={busy !== null}
           onClick={() => send("all")}
         >
-          {busy === "all" ? "Skickar…" : "📣 Skicka till alla"}
+          <Send size={14} strokeWidth={1.75} />
+          {busy === "all" ? "Skickar…" : "Alla"}
         </button>
         <button
           className="btn-secondary flex-1 text-sm"
           disabled={busy !== null}
           onClick={() => send("random")}
         >
-          {busy === "random" ? "Skickar…" : "🎲 Slumpad person"}
+          <Shuffle size={14} strokeWidth={1.75} />
+          {busy === "random" ? "Skickar…" : "Slumpad person"}
         </button>
       </div>
-      {message && <p className="text-sm text-amber-300">{message}</p>}
+      {message && <p className="text-sm text-accent-strong">{message}</p>}
     </div>
   );
 }
@@ -138,31 +140,30 @@ function AdminContent() {
       const res = await fetch("/api/challenges/seed", { method: "POST" });
       const data = await res.json();
       await load();
-      alert(data.added > 0 ? `La till ${data.added} exempel-utmaningar!` : "Alla exempel finns redan.");
+      alert(data.added > 0 ? `La till ${data.added} exempel-utmaningar` : "Alla exempel finns redan.");
     } finally {
       setSeeding(false);
     }
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-6">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-2xl space-y-6 px-4 py-7">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-extrabold">🛠️ Admin</h1>
-          <p className="text-white/60">Skapa och skicka ut utmaningar</p>
+          <h1 className="font-display text-2xl font-medium text-cream">Admin</h1>
+          <p className="mt-0.5 text-sm text-muted">Skapa och skicka ut utmaningar</p>
         </div>
-        <button onClick={seedDefaults} disabled={seeding} className="btn-secondary text-sm">
-          {seeding ? "…" : "✨ Exempel-utmaningar"}
+        <button onClick={seedDefaults} disabled={seeding} className="btn-secondary shrink-0 text-sm">
+          <Sparkles size={14} strokeWidth={1.75} />
+          {seeding ? "…" : "Exempel"}
         </button>
       </div>
 
       <form onSubmit={createChallenge} className="card space-y-3 p-4">
-        <p className="text-sm font-semibold uppercase tracking-wide text-white/50">
-          Ny utmaning
-        </p>
+        <p className="section-label">Ny utmaning</p>
         <div className="flex gap-2">
           <input
-            className="input-field w-16 text-center text-2xl"
+            className="input-field w-16 text-center text-xl"
             value={emoji}
             onChange={(e) => setEmoji(e.target.value)}
             maxLength={4}
@@ -186,7 +187,7 @@ function AdminContent() {
         />
         <div className="flex gap-3">
           <label className="flex-1 text-sm">
-            <span className="mb-1 block text-xs text-white/60">Poäng</span>
+            <span className="mb-1.5 block text-xs text-muted">Poäng</span>
             <input
               type="number"
               className="input-field"
@@ -197,7 +198,7 @@ function AdminContent() {
             />
           </label>
           <label className="flex-1 text-sm">
-            <span className="mb-1 block text-xs text-white/60">Tid (minuter)</span>
+            <span className="mb-1.5 block text-xs text-muted">Tid (minuter)</span>
             <input
               type="number"
               className="input-field"
@@ -209,20 +210,18 @@ function AdminContent() {
             />
           </label>
         </div>
-        {formError && <p className="text-sm text-red-300">{formError}</p>}
+        {formError && <p className="text-sm text-danger">{formError}</p>}
         <button type="submit" disabled={creating} className="btn-primary w-full">
           {creating ? "Skapar…" : "Skapa utmaning"}
         </button>
       </form>
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-white/50">
-          Alla utmaningar
-        </h2>
+        <p className="section-label mb-2">Alla utmaningar</p>
         {loading ? (
-          <p className="text-white/50">Laddar…</p>
+          <p className="text-sm text-muted">Laddar…</p>
         ) : challenges.length === 0 ? (
-          <p className="text-white/50">Inga utmaningar skapade än.</p>
+          <p className="text-sm text-muted">Inga utmaningar skapade än.</p>
         ) : (
           <div className="space-y-3">
             {challenges.map((c) => (

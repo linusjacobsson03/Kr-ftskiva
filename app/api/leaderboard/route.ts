@@ -11,7 +11,7 @@ export async function GET() {
   await expireOverdueAssignments();
 
   const leaderboard = await getAll(
-    `SELECT u.id, (u.first_name || ' ' || u.last_name) AS display_name, u.avatar_emoji,
+    `SELECT u.id, (u.first_name || ' ' || u.last_name) AS display_name,
       COALESCE(SUM(a.points_awarded), 0) as points,
       COUNT(CASE WHEN a.status = 'completed' THEN 1 END) as challenges_completed
      FROM users u

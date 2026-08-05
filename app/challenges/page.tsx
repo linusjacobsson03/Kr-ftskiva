@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Camera, CheckCircle2, Clock, ImageOff } from "lucide-react";
 import AuthGate from "../components/AuthGate";
+import Avatar from "../components/Avatar";
 import Countdown from "../components/Countdown";
 import { useAuth } from "../providers";
 import { fileToCompressedDataUrl } from "@/lib/compressImage";
@@ -59,30 +61,36 @@ function ChallengeCard({
 
   if (success !== null) {
     return (
-      <div className="card p-5 text-center">
-        <p className="text-4xl">🎉</p>
-        <p className="mt-2 font-bold">Klarat! +{success} poäng</p>
+      <div className="card flex flex-col items-center gap-2 p-6 text-center">
+        <CheckCircle2 size={30} strokeWidth={1.25} className="text-success" />
+        <p className="font-display text-lg font-medium text-cream">
+          Klarat! +{success} poäng
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="card space-y-3 border-2 border-amber-400/40 p-4">
-      <div className="flex items-center justify-between">
-        <p className="text-lg font-bold">
-          {assignment.emoji} {assignment.title}
+    <div className="card space-y-3 border-l-2 border-l-accent bg-accent/[0.04] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <p className="font-display text-lg font-medium text-cream">
+          <span className="mr-1.5">{assignment.emoji}</span>
+          {assignment.title}
         </p>
-        <Countdown deadlineIso={assignment.deadlineIso} className="text-xl" onExpire={onDone} />
+        <Countdown
+          deadlineIso={assignment.deadlineIso}
+          className="shrink-0 text-xl text-accent-strong"
+          onExpire={onDone}
+        />
       </div>
       {assignment.description && (
-        <p className="text-sm text-white/70">{assignment.description}</p>
+        <p className="text-sm text-muted">{assignment.description}</p>
       )}
-      <p className="text-sm font-semibold text-amber-300">
-        Värd {assignment.points} poäng — bildbevis krävs!
-      </p>
+      <p className="chip">Värd {assignment.points} poäng</p>
 
       <label className="btn-primary flex w-full cursor-pointer items-center justify-center gap-2">
-        {busy ? "Skickar…" : "📸 Ta bildbevis nu"}
+        <Camera size={17} strokeWidth={1.75} />
+        {busy ? "Skickar…" : "Ta bildbevis nu"}
         <input
           ref={inputRef}
           type="file"
@@ -93,7 +101,7 @@ function ChallengeCard({
           onChange={onFile}
         />
       </label>
-      {error && <p className="text-sm text-red-300">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
     </div>
   );
 }
@@ -137,18 +145,20 @@ function ChallengesContent() {
   }, [loadActive, loadSubmissions, refresh]);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-6">
+    <div className="mx-auto max-w-2xl space-y-6 px-4 py-7">
       <div>
-        <h1 className="text-2xl font-extrabold">🎯 Utmaningar</h1>
-        <p className="text-white/60">Samla poäng och vinn kvällens kräftbukal!</p>
+        <h1 className="font-display text-2xl font-medium text-cream">Utmaningar</h1>
+        <p className="mt-0.5 text-sm text-muted">
+          Samla poäng och vinn kvällens kräftbukal
+        </p>
       </div>
 
       {!loading && pending.length === 0 && (
-        <div className="card p-6 text-center">
-          <p className="text-3xl">⏳</p>
-          <p className="mt-2 font-semibold">Ingen aktiv utmaning just nu</p>
-          <p className="mt-1 text-sm text-white/60">
-            Håll utkik — en notis dyker upp när nästa utmaning skickas ut!
+        <div className="card flex flex-col items-center gap-2 p-8 text-center">
+          <Clock size={26} strokeWidth={1.25} className="text-muted" />
+          <p className="font-display font-medium text-cream">Ingen aktiv utmaning just nu</p>
+          <p className="text-sm text-muted">
+            Håll utkik — en notis dyker upp när nästa utmaning skickas ut
           </p>
         </div>
       )}
@@ -161,21 +171,19 @@ function ChallengesContent() {
 
       {history.length > 0 && (
         <div>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-white/50">
-            Din historik
-          </h2>
+          <p className="section-label mb-2">Din historik</p>
           <div className="flex flex-wrap gap-2">
             {history.map((h) => (
               <span
                 key={h.id}
-                className={`rounded-full px-3 py-1 text-xs font-medium ${
+                className={
                   h.status === "completed"
-                    ? "bg-green-500/15 text-green-300"
-                    : "bg-white/5 text-white/40"
-                }`}
+                    ? "chip"
+                    : "inline-flex items-center gap-1 rounded-full border border-white/[0.08] px-2.5 py-1 text-xs text-muted"
+                }
               >
                 {h.emoji} {h.title}{" "}
-                {h.status === "completed" ? `+${h.points_awarded}p` : "⌛ missad"}
+                {h.status === "completed" ? `+${h.points_awarded}p` : "missad"}
               </span>
             ))}
           </div>
@@ -183,11 +191,12 @@ function ChallengesContent() {
       )}
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-white/50">
-          Bildbevis från festen
-        </h2>
+        <p className="section-label mb-2">Bildbevis från festen</p>
         {submissions.length === 0 ? (
-          <p className="text-sm text-white/50">Inga bildbevis inlämnade än.</p>
+          <div className="flex flex-col items-center gap-2 py-8 text-center">
+            <ImageOff size={22} strokeWidth={1.25} className="text-muted" />
+            <p className="text-sm text-muted">Inga bildbevis inlämnade än</p>
+          </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {submissions.map((s) => (
@@ -198,14 +207,17 @@ function ChallengesContent() {
                   alt={s.title}
                   className="aspect-square w-full object-cover"
                 />
-                <div className="space-y-0.5 p-2">
-                  <p className="truncate text-xs font-semibold">
-                    {s.avatar_emoji} {s.display_name}
-                  </p>
-                  <p className="truncate text-xs text-amber-300">
+                <div className="space-y-1 p-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <Avatar name={s.display_name} size={16} />
+                    <p className="truncate text-xs font-medium text-cream">
+                      {s.display_name}
+                    </p>
+                  </div>
+                  <p className="truncate text-xs text-accent-strong">
                     {s.emoji} {s.title} · +{s.points_awarded}p
                   </p>
-                  <p className="text-[10px] text-white/40">{timeAgo(s.completed_at)}</p>
+                  <p className="text-[10px] text-muted/70">{timeAgo(s.completed_at)}</p>
                 </div>
               </div>
             ))}

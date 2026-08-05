@@ -56,7 +56,6 @@ export function sanitizeUser(user: UserRow) {
     lastName: user.last_name,
     displayName: displayNameOf(user),
     isAdmin: !!user.is_admin,
-    avatarEmoji: user.avatar_emoji,
     createdAt: user.created_at,
   };
 }

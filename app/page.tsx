@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Camera, ChevronRight, Sparkles, Trophy, UtensilsCrossed } from "lucide-react";
 import AuthGate from "./components/AuthGate";
 import PushOptIn from "./components/PushOptIn";
 import Countdown from "./components/Countdown";
@@ -38,50 +39,51 @@ function HomeContent() {
   }, []);
 
   const links = [
-    { href: "/challenges", emoji: "🎯", label: "Utmaningar", desc: "Vinn poäng" },
-    { href: "/photos", emoji: "📸", label: "Foton", desc: "Dagens minnen" },
-    { href: "/leaderboard", emoji: "🏆", label: "Topplista", desc: "Vem leder?" },
+    { href: "/challenges", icon: UtensilsCrossed, label: "Utmaningar", desc: "Vinn poäng" },
+    { href: "/photos", icon: Camera, label: "Foton", desc: "Dagens minnen" },
+    { href: "/leaderboard", icon: Trophy, label: "Topplista", desc: "Vem leder?" },
   ];
 
   return (
-    <div className="mx-auto max-w-xl space-y-5 px-4 py-6">
+    <div className="mx-auto max-w-xl space-y-6 px-4 py-7">
       <div>
-        <h1 className="text-2xl font-extrabold">
-          Hej {user?.avatarEmoji} {user?.displayName}!
+        <h1 className="font-display text-[1.75rem] font-medium tracking-tight text-cream">
+          Hej, {user?.firstName}
         </h1>
-        <p className="text-white/60">Välkommen till kvällens kräftskiva 🌙</p>
+        <p className="mt-0.5 font-display italic text-muted">
+          Välkommen till kvällens kräftskiva
+        </p>
       </div>
 
-      <div className="card flex items-center justify-between p-5">
+      <div className="card flex items-center justify-between px-6 py-5">
         <div>
-          <p className="text-sm text-white/60">Dina poäng</p>
-          <p className="text-4xl font-extrabold text-amber-300">{user?.points ?? 0}</p>
+          <p className="section-label">Dina poäng</p>
+          <p className="font-display mt-1 text-5xl font-medium text-accent-strong tabular">
+            {user?.points ?? 0}
+          </p>
         </div>
-        <div className="text-6xl">🥇</div>
+        <Trophy size={34} strokeWidth={1.25} className="text-accent/70" />
       </div>
 
       <PushOptIn />
 
       {!loadingChallenges && pending.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-white/50">
-            Aktiv utmaning
-          </h2>
+          <p className="section-label">Aktiv utmaning</p>
           {pending.map((p) => (
             <Link
               key={p.id}
               href="/challenges"
-              className="card block animate-[pulse_2.5s_ease-in-out_infinite] p-4"
+              className="card block border-l-2 border-l-accent bg-accent/[0.04] p-4 transition hover:bg-accent/[0.07]"
             >
-              <div className="flex items-center justify-between">
-                <p className="font-bold">
-                  {p.emoji} {p.title}
-                </p>
-                <Countdown deadlineIso={p.deadlineIso} className="text-lg" />
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-display text-lg font-medium text-cream">{p.title}</p>
+                <Countdown deadlineIso={p.deadlineIso} className="text-lg text-accent-strong" />
               </div>
-              <p className="mt-1 text-sm text-white/70">{p.description}</p>
-              <p className="mt-2 text-sm font-semibold text-amber-300">
-                Värd {p.points} poäng — tryck för att ta bildbevis! →
+              <p className="mt-1 text-sm text-muted">{p.description}</p>
+              <p className="mt-2.5 flex items-center gap-1 text-sm font-medium text-accent-strong">
+                Värd {p.points} poäng — ta bildbevis
+                <ChevronRight size={15} strokeWidth={2} />
               </p>
             </Link>
           ))}
@@ -89,17 +91,25 @@ function HomeContent() {
       )}
 
       <div className="grid grid-cols-3 gap-3">
-        {links.map((l) => (
-          <Link
-            key={l.href}
-            href={l.href}
-            className="card flex flex-col items-center gap-1 p-4 text-center transition active:scale-95"
-          >
-            <span className="text-3xl">{l.emoji}</span>
-            <span className="text-sm font-semibold">{l.label}</span>
-            <span className="text-xs text-white/50">{l.desc}</span>
-          </Link>
-        ))}
+        {links.map((l) => {
+          const Icon = l.icon;
+          return (
+            <Link
+              key={l.href}
+              href={l.href}
+              className="card flex flex-col items-center gap-2 py-5 text-center transition hover:bg-white/[0.05] active:scale-[0.98]"
+            >
+              <Icon size={22} strokeWidth={1.5} className="text-accent-strong" />
+              <span className="text-sm font-medium text-cream">{l.label}</span>
+              <span className="text-xs text-muted">{l.desc}</span>
+            </Link>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center justify-center gap-1.5 pt-2 text-xs text-muted">
+        <Sparkles size={12} strokeWidth={1.75} />
+        Skål för kvällen
       </div>
     </div>
   );

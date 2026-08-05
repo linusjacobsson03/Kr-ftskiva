@@ -37,9 +37,7 @@ export default function Countdown({
 
   return (
     <span
-      className={`font-mono font-bold tabular-nums ${
-        urgent ? "text-red-300 animate-pulse" : ""
-      } ${className}`}
+      className={`tabular font-display font-medium ${urgent ? "text-danger" : ""} ${className}`}
     >
       {minutes}:{seconds.toString().padStart(2, "0")}
     </span>

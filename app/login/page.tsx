@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { ArrowRight, Smartphone } from "lucide-react";
 import { useAuth } from "../providers";
 
 export default function LoginPage() {
@@ -47,47 +49,61 @@ export default function LoginPage() {
   if (loading || user) {
     return (
       <div className="flex flex-1 items-center justify-center py-24">
-        <div className="animate-pulse text-4xl">🦞</div>
+        <div className="h-8 w-8 animate-pulse rounded-full bg-accent/40" />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-[calc(100dvh-64px)] flex-col items-center justify-center px-4 py-10">
-      <div className="mb-8 text-center">
-        <div className="text-6xl">🦞</div>
-        <h1 className="mt-3 text-3xl font-extrabold tracking-tight">Kräftskiva</h1>
-        <p className="mt-1 text-white/60">Utmaningar, foton &amp; topplista i kväll</p>
+    <div className="flex min-h-[calc(100dvh-64px)] flex-col items-center justify-center px-4 py-12">
+      <div className="mb-9 flex flex-col items-center text-center">
+        <Image
+          src="/icons/icon-192.png"
+          alt=""
+          width={64}
+          height={64}
+          className="rounded-2xl shadow-[0_20px_50px_-20px_rgba(201,161,90,0.4)]"
+        />
+        <h1 className="font-display mt-5 text-4xl font-medium tracking-tight text-cream">
+          Kräftskiva
+        </h1>
+        <p className="mt-2 font-display text-[0.95rem] italic text-muted">
+          Utmaningar, foton &amp; topplista i kväll
+        </p>
       </div>
 
-      <div className="card w-full max-w-sm p-6">
-        <div className="mb-5 flex rounded-full bg-white/5 p-1 text-sm font-semibold">
+      <div className="card w-full max-w-sm p-7">
+        <div className="mb-6 flex gap-6 border-b border-white/[0.08]">
           <button
             type="button"
-            className={`flex-1 rounded-full py-2 transition ${
-              mode === "register" ? "bg-white/15 text-white" : "text-white/50"
-            }`}
             onClick={() => setMode("register")}
+            className={`relative pb-3 text-sm font-medium transition ${
+              mode === "register" ? "text-cream" : "text-muted"
+            }`}
           >
             Skapa konto
+            {mode === "register" && (
+              <span className="absolute inset-x-0 -bottom-px h-px bg-accent" />
+            )}
           </button>
           <button
             type="button"
-            className={`flex-1 rounded-full py-2 transition ${
-              mode === "login" ? "bg-white/15 text-white" : "text-white/50"
-            }`}
             onClick={() => setMode("login")}
+            className={`relative pb-3 text-sm font-medium transition ${
+              mode === "login" ? "text-cream" : "text-muted"
+            }`}
           >
             Logga in
+            {mode === "login" && (
+              <span className="absolute inset-x-0 -bottom-px h-px bg-accent" />
+            )}
           </button>
         </div>
 
-        <form onSubmit={submit} className="space-y-3">
+        <form onSubmit={submit} className="space-y-4">
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="mb-1 block text-xs font-medium text-white/60">
-                Förnamn
-              </label>
+              <label className="mb-1.5 block text-xs font-medium text-muted">Förnamn</label>
               <input
                 className="input-field"
                 placeholder="Linus"
@@ -98,9 +114,7 @@ export default function LoginPage() {
               />
             </div>
             <div className="flex-1">
-              <label className="mb-1 block text-xs font-medium text-white/60">
-                Efternamn
-              </label>
+              <label className="mb-1.5 block text-xs font-medium text-muted">Efternamn</label>
               <input
                 className="input-field"
                 placeholder="Jacobsson"
@@ -112,9 +126,7 @@ export default function LoginPage() {
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-white/60">
-              Lösenord
-            </label>
+            <label className="mb-1.5 block text-xs font-medium text-muted">Lösenord</label>
             <input
               className="input-field"
               placeholder="••••••"
@@ -127,23 +139,26 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <p className="rounded-lg bg-red-500/20 px-3 py-2 text-sm text-red-200">
-              {error}
-            </p>
+            <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>
           )}
 
-          <button type="submit" disabled={busy} className="btn-primary mt-2 w-full">
-            {busy
-              ? "Ett ögonblick…"
-              : mode === "register"
-                ? "🎉 Gå med i festen"
-                : "Logga in"}
+          <button type="submit" disabled={busy} className="btn-primary mt-1 w-full">
+            {busy ? (
+              "Ett ögonblick…"
+            ) : mode === "register" ? (
+              <>
+                Gå med i festen <ArrowRight size={16} strokeWidth={2} />
+              </>
+            ) : (
+              "Logga in"
+            )}
           </button>
         </form>
       </div>
 
-      <p className="mt-6 max-w-xs text-center text-xs text-white/40">
-        Tips: lägg till appen på hemskärmen för notiser om nya utmaningar! 📲
+      <p className="mt-7 flex max-w-xs items-center gap-1.5 text-center text-xs text-muted">
+        <Smartphone size={14} strokeWidth={1.75} className="shrink-0" />
+        Lägg till appen på hemskärmen för notiser om nya utmaningar
       </p>
     </div>
   );

@@ -12,7 +12,7 @@ export async function GET() {
 
   const photos = await getAll(
     `SELECT p.id, p.user_id, p.caption, p.image_data, p.created_at,
-      (u.first_name || ' ' || u.last_name) AS display_name, u.avatar_emoji
+      (u.first_name || ' ' || u.last_name) AS display_name
      FROM photos p
      JOIN users u ON u.id = p.user_id
      ORDER BY p.created_at DESC
