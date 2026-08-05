@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-night: #1e1b4b;
+  --color-night-deep: #0f0c29;
+  --color-ember: #dc2626;
+  --color-ember-light: #f97316;
+  --color-gold: #fbbf24;
+  --color-cream: #fef3c7;
+  --font-sans: ui-rounded, "SF Pro Rounded", "Nunito", ui-sans-serif, system-ui,
+    -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: radial-gradient(circle at 20% -10%, #4c1d3d 0%, transparent 55%),
+    linear-gradient(180deg, #1e1b4b 0%, #2c1650 45%, #4c1d3d 75%, #7f1d1d 100%);
+  background-attachment: fixed;
+  color: #fdf2f8;
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Reusable building blocks kept lightweight and utility-first on purpose. */
+.card {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1.25rem;
+  backdrop-filter: blur(6px);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #f97316, #dc2626);
+  color: white;
+  font-weight: 700;
+  border-radius: 9999px;
+  padding: 0.75rem 1.5rem;
+  box-shadow: 0 8px 20px -6px rgba(220, 38, 38, 0.6);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-primary:active {
+  transform: scale(0.97);
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: white;
+  font-weight: 600;
+  border-radius: 9999px;
+  padding: 0.65rem 1.35rem;
+  transition: background 0.15s ease;
+}
+.btn-secondary:active {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.input-field {
+  width: 100%;
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0.7rem 1rem;
+  color: white;
+  outline: none;
+}
+.input-field::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+.input-field:focus {
+  border-color: #fbbf24;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+}
