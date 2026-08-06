@@ -53,20 +53,24 @@ hela kvällen). Kör du på en plattform utan en långlivad serverprocess (t.ex.
 Vercels serverless-funktioner, som `kr-ftskiva.vercel.app` gör) finns två
 kompletterande vägar istället:
 
-1. **Opportunistisk utskick**: varje gång någon gästs telefon pollar sina
-   aktiva utmaningar (var 5:e–8:e sekund medan appen är öppen), eller admin
-   har fliken "Schema" öppen (var 20:e sekund), triggas en koll av om något
-   är dags att skicka. Så länge *någon* har appen öppen under kvällen —
-   vilket den rimligen är — skickas schemalagda utmaningar ut inom några
-   sekunder efter utsatt tid, helt utan extra konfiguration.
-2. **Vercel Cron** (`vercel.json` → `/api/cron/dispatch-schedule`) som
-   säkerhetsnät för det osannolika fallet att ingen har appen öppen exakt när
-   något är schemalagt. Sätt gärna `CRON_SECRET` som miljövariabel för att
-   låsa endpointen till Vercels egna cron-anrop — se
-   [Vercels dokumentation](https://vercel.com/docs/cron-jobs/manage-cron-jobs#securing-cron-jobs).
-   Observera att Vercels kostnadsfria (Hobby) nivå kan begränsa hur ofta cron
-   jobs faktiskt kör (upp till en gång per dygn) — det är bara en backup,
-   punkt 1 ovan är den primära mekanismen och kräver ingen Pro-plan.
+**Opportunistisk utskick**: varje gång någon gästs telefon pollar sina
+aktiva utmaningar (var 5:e–8:e sekund medan appen är öppen), eller admin har
+fliken "Schema" öppen (var 20:e sekund), triggas en koll av om något är dags
+att skicka. Så länge *någon* har appen öppen under kvällen — vilket den
+rimligen är — skickas schemalagda utmaningar ut inom några sekunder efter
+utsatt tid, helt utan extra konfiguration eller `vercel.json`.
+
+Det finns även en `/api/cron/dispatch-schedule`-endpoint som gör samma sak,
+tänkt som ett säkerhetsnät för det osannolika fallet att ingen har appen
+öppen exakt när något är schemalagt. Den kopplas **inte** in via Vercels
+egna Cron Jobs här, eftersom kostnadsfria (Hobby) Vercel-konton bara tillåter
+cron-scheman ner till en gång per dygn — ett `vercel.json`-cron som kör
+oftare (vilket den här endpointen skulle behöva för att vara till nytta på
+en enda kväll) **failar hela deployen**. Vill du ändå ha ett säkerhetsnät,
+använd en gratis extern tjänst (t.ex. [cron-job.org](https://cron-job.org))
+som pingar `https://din-app.vercel.app/api/cron/dispatch-schedule` var
+femte minut — sätt gärna `CRON_SECRET` som miljövariabel och skicka den som
+`Authorization: Bearer <värdet>` så att ingen annan kan trigga den.
 
 Inget manuellt konfigureringssteg krävs — appen genererar och sparar sin
 egen sessionsnyckel och sina egna VAPID-nycklar (för pushnotiser) i
@@ -111,7 +115,7 @@ du kan alltid utveckla/testa lokalt utan Turso-konto.
 | `SESSION_SECRET` | Nyckel för att signera inloggningssessioner (annars auto-genererad) |
 | `ADMIN_PASSCODE` | Lösenordet för `/admin` (annars slumpas ett fram vid första körningen — se nedan) |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Nycklar för Web Push-notiser (annars auto-genererade) |
-| `CRON_SECRET` | Låser `/api/cron/dispatch-schedule` (Vercel Cron-säkerhetsnätet för schemaläggning, se ovan) till Vercels egna anrop — valfritt |
+| `CRON_SECRET` | Låser `/api/cron/dispatch-schedule` (det extra säkerhetsnätet för schemaläggning, se ovan) till anrop med rätt `Authorization`-header — valfritt |
 | `DATABASE_PATH` | Sökväg till lokal sqlite-fil (annars `data/kraftskiva.db`) — ignoreras om Turso är satt |
 
 ### Admin-lösenord
