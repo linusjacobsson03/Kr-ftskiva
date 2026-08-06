@@ -106,14 +106,23 @@ async function getGeneratedPasscodeHash(): Promise<string> {
   );
 }
 
+/** True when ADMIN_PASSCODE is configured — exposed (not the value) via /api/admin/session to help diagnose "set it in Vercel but it still doesn't work" (usually: wrong environment scope, or no redeploy yet). */
+export function hasConfiguredAdminPasscode(): boolean {
+  return !!process.env.ADMIN_PASSCODE?.trim();
+}
+
 export async function verifyAdminPasscode(passcode: string): Promise<boolean> {
   // ADMIN_PASSCODE always wins when set, checked fresh on every call rather
   // than only the first time this ever ran. Env vars are commonly added or
   // changed *after* a project's first deploy — a one-time seed would silently
   // keep honoring whatever random passcode got generated before ADMIN_PASSCODE
   // was set, with no obvious way to tell that's what's happening.
-  if (process.env.ADMIN_PASSCODE) {
-    return passcode === process.env.ADMIN_PASSCODE;
+  //
+  // Trimmed on both sides: pasting a passcode into Vercel's env var UI (or a
+  // phone keyboard) very easily picks up a trailing space/newline, which
+  // would otherwise fail an exact match with no visible reason why.
+  if (hasConfiguredAdminPasscode()) {
+    return passcode.trim() === process.env.ADMIN_PASSCODE!.trim();
   }
   const hash = await getGeneratedPasscodeHash();
   return bcrypt.compare(passcode, hash);

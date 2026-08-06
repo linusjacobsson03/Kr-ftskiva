@@ -11,6 +11,7 @@ import { Lock } from "lucide-react";
  */
 export default function AdminPasscodeGate({ children }: { children: React.ReactNode }) {
   const [unlocked, setUnlocked] = useState<boolean | null>(null);
+  const [passcodeConfigured, setPasscodeConfigured] = useState<boolean | null>(null);
   const [passcode, setPasscode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -18,7 +19,10 @@ export default function AdminPasscodeGate({ children }: { children: React.ReactN
   useEffect(() => {
     fetch("/api/admin/session", { cache: "no-store" })
       .then((res) => res.json())
-      .then((data) => setUnlocked(!!data.unlocked))
+      .then((data) => {
+        setUnlocked(!!data.unlocked);
+        setPasscodeConfigured(!!data.passcodeConfigured);
+      })
       .catch(() => setUnlocked(false));
   }, []);
 
@@ -94,6 +98,18 @@ export default function AdminPasscodeGate({ children }: { children: React.ReactN
               {busy ? "Kollar…" : "Lås upp"}
             </button>
           </form>
+          {passcodeConfigured === false && (
+            <p className="rounded-lg bg-accent/10 p-3 text-left text-xs text-muted">
+              <span className="font-medium text-accent-strong">Felsökningstips:</span> servern
+              hittar just nu ingen <code className="text-cream">ADMIN_PASSCODE</code>, så ett
+              slumpat lösenord används istället av det du satt. Har du lagt in den i Vercel?
+              Kolla att den gäller miljön <span className="text-cream">Production</span> (inte
+              bara Preview/Development), och att du deployat om <span className="text-cream">
+                efter
+              </span>{" "}
+              att du lade till den — nya miljövariabler kräver en ny deploy för att synas.
+            </p>
+          )}
         </div>
       </div>
     );
