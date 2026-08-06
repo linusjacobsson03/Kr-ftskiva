@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import { extensionForDataUrl, saveItems } from "@/lib/download";
 
@@ -24,6 +25,15 @@ export default function Lightbox({
 }) {
   const item = items[index];
 
+  // Portal straight to <body> — rendering this deep inside the page's own
+  // scrollable content was the actual cause of the "still shows the bottom
+  // nav" bug: some engines resolve `position: fixed` height/containment
+  // against a scrollable ancestor's layout in ways that don't match a true
+  // top-level overlay. A portal sidesteps that whole class of issue instead
+  // of chasing it browser by browser.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const goPrev = useCallback(() => {
     onIndexChange((index - 1 + items.length) % items.length);
   }, [index, items.length, onIndexChange]);
@@ -42,10 +52,10 @@ export default function Lightbox({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose, goPrev, goNext]);
 
-  if (!item) return null;
+  if (!item || !mounted) return null;
   const isVideo = item.url.startsWith("data:video/");
 
-  return (
+  return createPortal(
     <div className="fixed left-0 top-0 z-50 h-dvh w-full overflow-hidden bg-black">
       {isVideo ? (
         <video
@@ -125,6 +135,7 @@ export default function Lightbox({
           {item.caption && <p className="mt-0.5 text-sm text-white/80">{item.caption}</p>}
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
