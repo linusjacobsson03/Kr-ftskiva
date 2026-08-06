@@ -3,6 +3,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { getOne, run, AssignmentRow, ChallengeRow } from "@/lib/db";
 import { apiError } from "@/lib/apiError";
 
+// Same real ceiling as app/api/photos/route.ts — see the comment there.
+const MAX_IMAGE_CHARS = 4_400_000; // ~3.3MB binary
+
 export async function POST(
   request: Request,
   ctx: RouteContext<"/api/challenges/assignments/[id]/submit">
@@ -52,6 +55,9 @@ export async function POST(
         { error: "Bildbevis krävs för att klara utmaningen." },
         { status: 400 }
       );
+    }
+    if (imageData.length > MAX_IMAGE_CHARS) {
+      return NextResponse.json({ error: "Bilden är för stor." }, { status: 413 });
     }
 
     const challenge = await getOne<ChallengeRow>("SELECT * FROM challenges WHERE id = ?", [

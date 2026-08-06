@@ -4,13 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { RefreshCw, Square, X } from "lucide-react";
 
 // Vercel Functions hard-cap the request body at 4.5MB, and base64 inflates
-// binary size by ~1.33x — so the raw clip must stay well under ~3MB to have
-// any safety margin. A short auto-stopping clip at a modest bitrate keeps
-// every recording predictably small instead of letting people record
-// something that then fails to upload with a confusing error.
+// binary size by ~1.33x, so raw output must stay well under that. At these
+// numbers, 8s tops out around (2.2 + 0.096) Mbps * 8s / 8 ≈ 2.3MB raw, i.e.
+// ~3.1MB base64 — comfortable headroom below the ~3.3MB raw / 4.4MB base64
+// ceiling enforced server-side (see MAX_VIDEO_CHARS in api/photos/route.ts)
+// even if a busy, high-motion scene pushes the encoder above its target.
 const MAX_SECONDS = 8;
-const VIDEO_BITRATE = 1_200_000; // ~1.2 Mbps
-const AUDIO_BITRATE = 64_000;
+const VIDEO_BITRATE = 2_200_000; // ~2.2 Mbps — the previous 1.2 Mbps looked visibly soft/blocky
+const AUDIO_BITRATE = 96_000;
 
 function pickMimeType(): string {
   const candidates = [
@@ -64,7 +65,7 @@ export default function VideoRecorder({
       streamRef.current?.getTracks().forEach((t) => t.stop());
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
           audio: true,
         });
         if (cancelled) {

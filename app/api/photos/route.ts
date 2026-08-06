@@ -3,12 +3,16 @@ import { getCurrentUser } from "@/lib/auth";
 import { getAll, run } from "@/lib/db";
 import { apiError } from "@/lib/apiError";
 
-const MAX_IMAGE_CHARS = 8_000_000; // ~6MB binary, generous for a compressed JPEG
-// Vercel Functions hard-cap the whole request body at 4.5MB regardless of
-// plan, and base64 inflates binary size by ~1.33x — so this must leave
-// headroom under that ceiling. VideoRecorder targets well below this by
-// capping clips at 8s and a modest bitrate; this is the server-side backstop.
-const MAX_VIDEO_CHARS = 4_500_000; // ~3.4MB binary
+// Vercel Functions hard-cap the whole request body — image or video, doesn't
+// matter — at 4.5MB regardless of plan, and base64 inflates binary size by
+// ~1.33x. Both limits below leave headroom under that real ceiling; getting
+// this wrong means the platform rejects the request before our code (and
+// its friendly error message) ever runs, back to an opaque failure. A
+// higher-quality photo at 2400px/86% JPEG still lands nowhere near this in
+// practice (typically a few hundred KB to ~1.5MB) — it's a safety cap, not
+// the expected size.
+const MAX_IMAGE_CHARS = 4_400_000; // ~3.3MB binary
+const MAX_VIDEO_CHARS = 4_400_000; // ~3.3MB binary — VideoRecorder targets well below this
 
 export async function GET() {
   try {

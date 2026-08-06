@@ -36,7 +36,13 @@ export default function CameraCapture({
       streamRef.current?.getTracks().forEach((t) => t.stop());
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode },
+          // Without explicit ideal dimensions, browsers often negotiate a
+          // low default resolution (sometimes as low as 640x480) — that's
+          // the actual captured detail, no amount of downscaling/JPEG
+          // quality afterward can recover it. Asking for a high `ideal`
+          // (never `exact`, so it still degrades gracefully on older/lower
+          // cameras) gets the sharp, high-res capture people expect.
+          video: { facingMode, width: { ideal: 2560 }, height: { ideal: 1440 } },
           audio: false,
         });
         if (cancelled) {

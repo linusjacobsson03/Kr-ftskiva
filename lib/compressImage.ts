@@ -43,7 +43,7 @@ function drawToCompressedDataUrl(
   source: CanvasImageSource,
   width: number,
   height: number,
-  { maxDimension = 1600, quality = 0.78, mirror = false }: CompressOptions = {}
+  { maxDimension = 2400, quality = 0.86, mirror = false }: CompressOptions = {}
 ): string {
   let targetWidth = width;
   let targetHeight = height;
