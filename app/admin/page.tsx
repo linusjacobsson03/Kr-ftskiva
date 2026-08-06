@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Check, Clock, Lock, Send, Sparkles, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Check, ChevronDown, Clock, Lock, Send, Sparkles, X } from "lucide-react";
 import AdminPasscodeGate from "../components/AdminPasscodeGate";
 import type { ChallengeTemplate, ScheduleEntry, UserOption } from "@/lib/types";
 
@@ -124,11 +124,116 @@ function PendingChallengeRow({
   );
 }
 
-const TARGET_OPTIONS = [
-  { key: "random" as const, label: "Slumpad" },
-  { key: "all" as const, label: "Alla" },
-  { key: "user" as const, label: "Välj personer" },
-];
+export interface Recipients {
+  target: "random" | "all" | "user";
+  selectedUserIds: number[];
+}
+
+function recipientsValid(r: Recipients): boolean {
+  return r.target !== "user" || r.selectedUserIds.length > 0;
+}
+
+/**
+ * Compact "pick who gets this" control — a single small dropdown instead of
+ * a bank of pill buttons plus an always-visible checkbox panel, so it fits
+ * comfortably next to the emoji field on the "Ny utmaning" form. Doubles as
+ * the mottagare-picker on already-approved challenges below. One tap for
+ * "Slumpad"/"Alla", or check any number of individual people — the admin's
+ * own account is just another row in `users`, nothing excludes it, so
+ * picking yourself works the same as picking anyone else.
+ */
+function RecipientDropdown({
+  users,
+  value,
+  onChange,
+  label,
+}: {
+  users: UserOption[];
+  value: Recipients;
+  onChange: (next: Recipients) => void;
+  label?: string;
+}) {
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+
+  function close() {
+    if (detailsRef.current) detailsRef.current.open = false;
+  }
+
+  function pickSingle(target: "random" | "all") {
+    onChange({ target, selectedUserIds: [] });
+    close();
+  }
+
+  function toggleUser(id: number) {
+    const current = value.target === "user" ? value.selectedUserIds : [];
+    const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
+    onChange({ target: "user", selectedUserIds: next });
+  }
+
+  const summary =
+    value.target === "random"
+      ? "Slumpad"
+      : value.target === "all"
+      ? "Alla"
+      : value.selectedUserIds.length === 0
+      ? "Välj spelare"
+      : `${value.selectedUserIds.length} vald${value.selectedUserIds.length === 1 ? "" : "a"}`;
+
+  return (
+    <details ref={detailsRef} className="group relative min-w-0 flex-1">
+      {label && <span className="mb-1.5 block text-xs text-muted">{label}</span>}
+      <summary className="input-field flex list-none items-center justify-between gap-1 text-sm [&::-webkit-details-marker]:hidden">
+        <span className="truncate">{summary}</span>
+        <ChevronDown
+          size={14}
+          strokeWidth={1.75}
+          className="shrink-0 text-muted transition group-open:rotate-180"
+        />
+      </summary>
+      <div className="absolute right-0 top-full z-10 mt-1 w-56 space-y-0.5 rounded-xl border border-white/10 bg-[color:var(--color-surface)] p-1.5 shadow-lg">
+        <button
+          type="button"
+          onClick={() => pickSingle("random")}
+          className={`block w-full rounded-lg px-2 py-1.5 text-left text-sm ${
+            value.target === "random" ? "bg-accent text-ink" : "text-cream"
+          }`}
+        >
+          Slumpad person
+        </button>
+        <button
+          type="button"
+          onClick={() => pickSingle("all")}
+          className={`block w-full rounded-lg px-2 py-1.5 text-left text-sm ${
+            value.target === "all" ? "bg-accent text-ink" : "text-cream"
+          }`}
+        >
+          Alla
+        </button>
+        <div className="my-1 border-t border-white/10" />
+        <div className="max-h-40 overflow-y-auto">
+          {users.length === 0 ? (
+            <p className="px-2 py-1.5 text-sm text-muted">Inga deltagare än.</p>
+          ) : (
+            users.map((u) => (
+              <label
+                key={u.id}
+                className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-cream"
+              >
+                <input
+                  type="checkbox"
+                  checked={value.target === "user" && value.selectedUserIds.includes(u.id)}
+                  onChange={() => toggleUser(u.id)}
+                  className="h-4 w-4 accent-[color:var(--color-accent)]"
+                />
+                {u.displayName}
+              </label>
+            ))
+          )}
+        </div>
+      </div>
+    </details>
+  );
+}
 
 function ChallengeRow({
   challenge,
@@ -139,12 +244,12 @@ function ChallengeRow({
   users: UserOption[];
   onSent: () => void;
 }) {
-  // One shared recipient picker feeds both "skicka nu" and "schemalägg" —
-  // "Välj personer" supports one, several, or (by checking everyone) every
-  // participant, including the admin's own account: /api/users lists every
-  // row in `users` with nothing filtered out, admin or not.
-  const [target, setTarget] = useState<"random" | "all" | "user">("random");
-  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+  // Shared recipient picker feeds both "skicka nu" and "schemalägg".
+  const [recipients, setRecipients] = useState<Recipients>({
+    target: "random",
+    selectedUserIds: [],
+  });
+  const { target, selectedUserIds } = recipients;
 
   const [sendAt, setSendAt] = useState(
     challenge.suggested_time ? `${todayLocalDateStr()}T${challenge.suggested_time}` : ""
@@ -157,19 +262,9 @@ function ChallengeRow({
 
   const difficulty = difficultyOf(challenge.points);
 
-  function toggleUser(id: number) {
-    setSelectedUserIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  }
-
-  function recipientsValid(): boolean {
-    return target !== "user" || selectedUserIds.length > 0;
-  }
-
   async function sendNow() {
     setSendMsg(null);
-    if (!recipientsValid()) {
+    if (!recipientsValid(recipients)) {
       setSendMsg("Välj minst en person.");
       return;
     }
@@ -201,7 +296,7 @@ function ChallengeRow({
       setScheduleMsg("Välj en tid först.");
       return;
     }
-    if (!recipientsValid()) {
+    if (!recipientsValid(recipients)) {
       setScheduleMsg("Välj minst en person.");
       return;
     }
@@ -254,49 +349,13 @@ function ChallengeRow({
         </p>
       </div>
 
-      <div className="space-y-2 border-t border-white/10 pt-3">
-        <p className="section-label">Mottagare</p>
-        <div className="flex gap-2">
-          {TARGET_OPTIONS.map((opt) => (
-            <button
-              key={opt.key}
-              type="button"
-              onClick={() => setTarget(opt.key)}
-              className={`flex-1 rounded-xl py-2 text-xs font-medium transition ${
-                target === opt.key ? "bg-accent text-ink" : "bg-white/5 text-muted"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        {target === "user" && (
-          <div className="max-h-40 space-y-0.5 overflow-y-auto rounded-xl bg-white/5 p-1.5">
-            {users.length === 0 ? (
-              <p className="px-2 py-1.5 text-sm text-muted">Inga deltagare än.</p>
-            ) : (
-              users.map((u) => (
-                <label
-                  key={u.id}
-                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-cream"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedUserIds.includes(u.id)}
-                    onChange={() => toggleUser(u.id)}
-                    className="h-4 w-4 accent-[color:var(--color-accent)]"
-                  />
-                  {u.displayName}
-                </label>
-              ))
-            )}
-            {selectedUserIds.length > 0 && (
-              <p className="px-2 pt-1 text-xs text-muted">
-                {selectedUserIds.length} vald{selectedUserIds.length === 1 ? "" : "a"}
-              </p>
-            )}
-          </div>
-        )}
+      <div className="border-t border-white/10 pt-3">
+        <RecipientDropdown
+          users={users}
+          value={recipients}
+          onChange={setRecipients}
+          label="Mottagare"
+        />
       </div>
 
       <button className="btn-secondary w-full text-sm" disabled={sending} onClick={sendNow}>
@@ -399,13 +458,18 @@ function ApprovedTab() {
   const [challenges, setChallenges] = useState<ChallengeTemplate[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [emoji, setEmoji] = useState("🎯");
+  const [recipients, setRecipients] = useState<Recipients>({
+    target: "random",
+    selectedUserIds: [],
+  });
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [sendAt, setSendAt] = useState(""); // blank = skicka direkt vid skapande
   const [points, setPoints] = useState(1);
-  const [emoji, setEmoji] = useState("🎯");
-  const [suggestedTime, setSuggestedTime] = useState("");
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/challenges", { cache: "no-store" });
@@ -421,32 +485,69 @@ function ApprovedTab() {
       .then((data) => setUsers(data.users ?? []));
   }, [load]);
 
+  // Creating a challenge here immediately dispatches it too — no detour via
+  // the list below. Recipients + tid feed straight into /send or /schedule
+  // right after the challenge itself is created.
   async function createChallenge(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
+    setFormSuccess(null);
+    if (!recipientsValid(recipients)) {
+      setFormError("Välj minst en spelare, eller byt till Slumpad/Alla.");
+      return;
+    }
     setCreating(true);
     try {
-      const res = await fetch("/api/challenges", {
+      const createRes = await fetch("/api/challenges", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          description,
-          points,
-          emoji,
-          suggestedTime: suggestedTime || undefined,
-        }),
+        body: JSON.stringify({ title, description, points, emoji }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setFormError(data.error || "Kunde inte skapa utmaningen.");
+      const createData = await createRes.json();
+      if (!createRes.ok) {
+        setFormError(createData.error || "Kunde inte skapa utmaningen.");
         return;
       }
+      const challengeId = createData.challenge.id;
+      const dispatchBody = {
+        target: recipients.target,
+        userIds: recipients.target === "user" ? recipients.selectedUserIds : undefined,
+      };
+
+      if (sendAt) {
+        const res = await fetch(`/api/challenges/${challengeId}/schedule`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...dispatchBody, sendAt: new Date(sendAt).toISOString() }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setFormError(`Utmaningen skapades men kunde inte schemaläggas: ${data.error ?? "okänt fel"}`);
+          await load();
+          return;
+        }
+        setFormSuccess("Utmaningen skapades och schemalades — se fliken Schema.");
+      } else {
+        const res = await fetch(`/api/challenges/${challengeId}/send`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(dispatchBody),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setFormError(`Utmaningen skapades men kunde inte skickas: ${data.error ?? "okänt fel"}`);
+          await load();
+          return;
+        }
+        setFormSuccess(`Utmaningen skapades och skickades till ${data.sentTo} person${data.sentTo === 1 ? "" : "er"}.`);
+      }
+
+      setEmoji("🎯");
+      setRecipients({ target: "random", selectedUserIds: [] });
       setTitle("");
       setDescription("");
+      setSendAt("");
       setPoints(1);
-      setEmoji("🎯");
-      setSuggestedTime("");
       await load();
     } finally {
       setCreating(false);
@@ -459,20 +560,25 @@ function ApprovedTab() {
         <p className="section-label">Ny utmaning</p>
         <div className="flex gap-2">
           <input
-            className="input-field w-16 text-center text-xl"
+            className="input-field w-16 shrink-0 text-center text-xl"
             value={emoji}
             onChange={(e) => setEmoji(e.target.value)}
             maxLength={4}
           />
-          <input
-            className="input-field flex-1"
-            placeholder="Titel, t.ex. 'Kindpuss-kombo'"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            maxLength={120}
-            required
+          <RecipientDropdown
+            users={users}
+            value={recipients}
+            onChange={setRecipients}
           />
         </div>
+        <input
+          className="input-field"
+          placeholder="Titel, t.ex. 'Kindpuss-kombo'"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          maxLength={120}
+          required
+        />
         <textarea
           className="input-field"
           placeholder="Beskrivning / instruktion"
@@ -482,6 +588,15 @@ function ApprovedTab() {
           rows={2}
         />
         <div className="flex gap-3">
+          <label className="flex-1 text-sm">
+            <span className="mb-1.5 block text-xs text-muted">Tid (tomt = skicka direkt)</span>
+            <input
+              type="datetime-local"
+              className="input-field"
+              value={sendAt}
+              onChange={(e) => setSendAt(e.target.value)}
+            />
+          </label>
           <label className="flex-1 text-sm">
             <span className="mb-1.5 block text-xs text-muted">
               Poäng (1 lätt, 2 medel, 3 svår, 5 vågad)
@@ -495,20 +610,13 @@ function ApprovedTab() {
               onChange={(e) => setPoints(Number(e.target.value))}
             />
           </label>
-          <label className="flex-1 text-sm">
-            <span className="mb-1.5 block text-xs text-muted">Passar runt (frivilligt)</span>
-            <input
-              type="time"
-              className="input-field"
-              value={suggestedTime}
-              onChange={(e) => setSuggestedTime(e.target.value)}
-            />
-          </label>
         </div>
         <p className="text-xs text-muted/70">Alla utmaningar har 5 minuter på sig att lösas.</p>
         {formError && <p className="text-sm text-danger">{formError}</p>}
+        {formSuccess && <p className="text-sm text-accent-strong">{formSuccess}</p>}
         <button type="submit" disabled={creating} className="btn-primary w-full">
-          {creating ? "Skapar…" : "Skapa utmaning"}
+          <Send size={14} strokeWidth={1.75} />
+          {creating ? "Skapar…" : sendAt ? "Skapa och schemalägg" : "Skapa och skicka"}
         </button>
       </form>
 

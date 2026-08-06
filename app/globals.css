@@ -63,116 +63,126 @@ h3,
   letter-spacing: -0.01em;
 }
 
-/* ---------- Building blocks ---------- */
+/* ---------- Building blocks ----------
+   Wrapped in @layer components: Tailwind v4's @import above creates the
+   cascade layers theme/base/components/utilities, and any *unlayered* CSS
+   (which this file's rules would otherwise be, since they're plain classes
+   written after the import) automatically outranks all of them regardless
+   of source order. Without this @layer, a utility class combined with one
+   of these on the same element — e.g. `className="input-field w-16"` to
+   make one particular input narrow — silently loses to this file's
+   `width: 100%`/etc. every time, which is exactly what happened to the
+   emoji field on the admin "Ny utmaning" form. */
+@layer components {
+  .card {
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 1.1rem;
+  }
 
-.card {
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 1.1rem;
-}
+  .section-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
 
-.section-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--color-muted);
-}
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: var(--color-accent);
+    color: var(--color-ink);
+    font-weight: 600;
+    font-size: 0.9rem;
+    border-radius: 0.7rem;
+    padding: 0.72rem 1.35rem;
+    transition:
+      background 0.15s ease,
+      transform 0.1s ease;
+  }
+  .btn-primary:hover {
+    background: var(--color-accent-strong);
+  }
+  .btn-primary:active {
+    transform: scale(0.98);
+  }
+  .btn-primary:disabled {
+    opacity: 0.45;
+    background: var(--color-accent);
+    transform: none;
+  }
 
-.btn-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  background: var(--color-accent);
-  color: var(--color-ink);
-  font-weight: 600;
-  font-size: 0.9rem;
-  border-radius: 0.7rem;
-  padding: 0.72rem 1.35rem;
-  transition:
-    background 0.15s ease,
-    transform 0.1s ease;
-}
-.btn-primary:hover {
-  background: var(--color-accent-strong);
-}
-.btn-primary:active {
-  transform: scale(0.98);
-}
-.btn-primary:disabled {
-  opacity: 0.45;
-  background: var(--color-accent);
-  transform: none;
-}
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: var(--color-cream);
+    font-weight: 500;
+    font-size: 0.9rem;
+    border-radius: 0.7rem;
+    padding: 0.65rem 1.25rem;
+    transition:
+      border-color 0.15s ease,
+      background 0.15s ease;
+  }
+  .btn-secondary:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .btn-secondary:disabled {
+    opacity: 0.45;
+  }
 
-.btn-secondary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  color: var(--color-cream);
-  font-weight: 500;
-  font-size: 0.9rem;
-  border-radius: 0.7rem;
-  padding: 0.65rem 1.25rem;
-  transition:
-    border-color 0.15s ease,
-    background 0.15s ease;
-}
-.btn-secondary:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.04);
-}
-.btn-secondary:disabled {
-  opacity: 0.45;
-}
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--color-muted);
+    font-size: 0.8rem;
+    font-weight: 500;
+    transition: color 0.15s ease;
+  }
+  .btn-ghost:hover {
+    color: var(--color-cream);
+  }
 
-.btn-ghost {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: var(--color-muted);
-  font-size: 0.8rem;
-  font-weight: 500;
-  transition: color 0.15s ease;
-}
-.btn-ghost:hover {
-  color: var(--color-cream);
-}
+  .input-field {
+    width: 100%;
+    border-radius: 0.65rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 0.68rem 0.9rem;
+    color: var(--color-cream);
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .input-field::placeholder {
+    color: rgba(243, 239, 230, 0.32);
+  }
+  .input-field:focus {
+    border-color: var(--color-accent);
+    background: rgba(255, 255, 255, 0.05);
+  }
 
-.input-field {
-  width: 100%;
-  border-radius: 0.65rem;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 0.68rem 0.9rem;
-  color: var(--color-cream);
-  font-size: 0.95rem;
-  outline: none;
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
-.input-field::placeholder {
-  color: rgba(243, 239, 230, 0.32);
-}
-.input-field:focus {
-  border-color: var(--color-accent);
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  border-radius: 999px;
-  padding: 0.3rem 0.7rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  background: rgba(201, 161, 90, 0.12);
-  color: var(--color-accent-strong);
-  border: 1px solid rgba(201, 161, 90, 0.25);
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    border-radius: 999px;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: rgba(201, 161, 90, 0.12);
+    color: var(--color-accent-strong);
+    border: 1px solid rgba(201, 161, 90, 0.25);
+  }
 }
 
 .tabular {
