@@ -11,7 +11,7 @@ import Avatar from "./Avatar";
 // area (see AdminPasscodeGate) that anyone who knows the passcode can open,
 // so the tab is always here rather than conditioned on the logged-in user.
 const TABS = [
-  { href: "/", label: "Hem", icon: Home },
+  { href: "/hem", label: "Hem", icon: Home },
   { href: "/challenges", label: "Utmaningar", icon: UtensilsCrossed },
   { href: "/photos", label: "Foton", icon: Camera },
   { href: "/leaderboard", label: "Topplista", icon: Trophy },
@@ -26,7 +26,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/[0.06] bg-bg/85 px-4 py-3 backdrop-blur-md">
-        <Link href="/" className="flex items-center gap-2.5">
+        <Link href={user ? "/hem" : "/"} className="flex items-center gap-2.5">
           <Image src="/icons/icon-192.png" alt="" width={28} height={28} className="rounded-lg" />
           <span className="font-display text-lg font-medium tracking-tight text-cream">
             Kräftskiva

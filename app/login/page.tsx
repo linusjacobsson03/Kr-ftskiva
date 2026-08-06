@@ -18,7 +18,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace("/");
+      router.replace("/hem");
     }
   }, [loading, user, router]);
 
@@ -38,7 +38,7 @@ export default function LoginPage() {
         return;
       }
       await refresh();
-      router.push("/");
+      router.push("/hem");
     } catch {
       setError("Kunde inte nå servern. Testa igen.");
     } finally {
