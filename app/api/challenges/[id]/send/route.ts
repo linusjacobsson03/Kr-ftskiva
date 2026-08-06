@@ -22,23 +22,39 @@ export async function POST(
       return NextResponse.json({ error: "Utmaningen hittades inte." }, { status: 404 });
     }
 
-    let body: { target?: "all" | "random" };
+    let body: { target?: "all" | "random" | "user"; userIds?: number[] };
     try {
       body = await request.json();
     } catch {
       body = {};
     }
-    const target = body.target === "random" ? "random" : "all";
+    const target =
+      body.target === "random" || body.target === "user" ? body.target : "all";
 
     const allUsers = await getAll<UserRow>("SELECT * FROM users");
     if (allUsers.length === 0) {
       return NextResponse.json({ error: "Inga deltagare än." }, { status: 400 });
     }
 
-    const recipients: UserRow[] =
-      target === "random"
-        ? [allUsers[Math.floor(Math.random() * allUsers.length)]]
-        : allUsers;
+    let recipients: UserRow[];
+    if (target === "random") {
+      recipients = [allUsers[Math.floor(Math.random() * allUsers.length)]];
+    } else if (target === "user") {
+      // Admins pick one, several, or (functionally, if they check everyone)
+      // all recipients from the same participant list /api/users returns —
+      // that list includes the admin's own account like any other, so
+      // there's nothing special needed to let an admin send to themselves.
+      const wantedIds = new Set((body.userIds ?? []).map(Number).filter((n) => !Number.isNaN(n)));
+      if (wantedIds.size === 0) {
+        return NextResponse.json({ error: "Välj minst en person." }, { status: 400 });
+      }
+      recipients = allUsers.filter((u) => wantedIds.has(u.id));
+      if (recipients.length === 0) {
+        return NextResponse.json({ error: "Personerna hittades inte." }, { status: 404 });
+      }
+    } else {
+      recipients = allUsers;
+    }
 
     await runBatch(
       recipients.map((u) => ({

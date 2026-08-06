@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getAll, expireOverdueAssignments } from "@/lib/db";
 import { apiError } from "@/lib/apiError";
+import { dispatchDueSchedules } from "@/lib/scheduler";
 
 export async function GET() {
   try {
@@ -9,6 +10,16 @@ export async function GET() {
     if (!user) {
       return NextResponse.json({ error: "Ej inloggad." }, { status: 401 });
     }
+
+    // Best-effort: on serverless hosts (Vercel) there's no long-lived
+    // process for lib/scheduler.ts's setInterval poller to run in, so a
+    // scheduled challenge would otherwise just sit there forever. This
+    // route is polled every few seconds by every guest with the app open
+    // (see app/hem/page.tsx, app/challenges/page.tsx), which makes it a
+    // good opportunistic trigger — as long as *someone's* phone is polling,
+    // due schedules get dispatched within seconds. Never allowed to fail
+    // this request even if dispatch itself errors.
+    dispatchDueSchedules().catch(() => undefined);
 
     await expireOverdueAssignments();
 

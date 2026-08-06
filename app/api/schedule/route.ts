@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminSession } from "@/lib/auth";
 import { getAll } from "@/lib/db";
 import { apiError } from "@/lib/apiError";
+import { dispatchDueSchedules } from "@/lib/scheduler";
 
 interface ScheduleQueryRow {
   id: number;
@@ -26,6 +27,12 @@ export async function GET() {
         { status: 401 }
       );
     }
+
+    // Same opportunistic trigger as /api/challenges/active — see comment
+    // there. The admin Schema-flik polls this route every 20s, so as long as
+    // it's open, due sends still go out even without a persistent server
+    // process (Vercel).
+    dispatchDueSchedules().catch(() => undefined);
 
     const rows = await getAll<ScheduleQueryRow>(
       `SELECT s.id, s.challenge_id, c.title as challenge_title, c.emoji as challenge_emoji,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, Clock, Lock, Send, Shuffle, Sparkles, X } from "lucide-react";
+import { Check, Clock, Lock, Send, Sparkles, X } from "lucide-react";
 import AdminPasscodeGate from "../components/AdminPasscodeGate";
 import type { ChallengeTemplate, ScheduleEntry, UserOption } from "@/lib/types";
 
@@ -124,6 +124,12 @@ function PendingChallengeRow({
   );
 }
 
+const TARGET_OPTIONS = [
+  { key: "random" as const, label: "Slumpad" },
+  { key: "all" as const, label: "Alla" },
+  { key: "user" as const, label: "Välj personer" },
+];
+
 function ChallengeRow({
   challenge,
   users,
@@ -133,37 +139,59 @@ function ChallengeRow({
   users: UserOption[];
   onSent: () => void;
 }) {
-  const [busy, setBusy] = useState<"all" | "random" | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  // One shared recipient picker feeds both "skicka nu" and "schemalägg" —
+  // "Välj personer" supports one, several, or (by checking everyone) every
+  // participant, including the admin's own account: /api/users lists every
+  // row in `users` with nothing filtered out, admin or not.
+  const [target, setTarget] = useState<"random" | "all" | "user">("random");
+  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
 
   const [sendAt, setSendAt] = useState(
     challenge.suggested_time ? `${todayLocalDateStr()}T${challenge.suggested_time}` : ""
   );
-  const [target, setTarget] = useState<"random" | "all" | "user">("random");
-  const [targetUserId, setTargetUserId] = useState<number | "">("");
+
+  const [sending, setSending] = useState(false);
+  const [sendMsg, setSendMsg] = useState<string | null>(null);
   const [scheduling, setScheduling] = useState(false);
   const [scheduleMsg, setScheduleMsg] = useState<string | null>(null);
 
   const difficulty = difficultyOf(challenge.points);
 
-  async function send(t: "all" | "random") {
-    setBusy(t);
-    setMessage(null);
+  function toggleUser(id: number) {
+    setSelectedUserIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
+  function recipientsValid(): boolean {
+    return target !== "user" || selectedUserIds.length > 0;
+  }
+
+  async function sendNow() {
+    setSendMsg(null);
+    if (!recipientsValid()) {
+      setSendMsg("Välj minst en person.");
+      return;
+    }
+    setSending(true);
     try {
       const res = await fetch(`/api/challenges/${challenge.id}/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target: t }),
+        body: JSON.stringify({
+          target,
+          userIds: target === "user" ? selectedUserIds : undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setMessage(data.error || "Kunde inte skicka.");
+        setSendMsg(data.error || "Kunde inte skicka.");
         return;
       }
-      setMessage(`Skickat till ${data.sentTo} person${data.sentTo === 1 ? "" : "er"}`);
+      setSendMsg(`Skickat till ${data.sentTo} person${data.sentTo === 1 ? "" : "er"}`);
       onSent();
     } finally {
-      setBusy(null);
+      setSending(false);
     }
   }
 
@@ -173,8 +201,8 @@ function ChallengeRow({
       setScheduleMsg("Välj en tid först.");
       return;
     }
-    if (target === "user" && !targetUserId) {
-      setScheduleMsg("Välj vem som ska få den.");
+    if (!recipientsValid()) {
+      setScheduleMsg("Välj minst en person.");
       return;
     }
     setScheduling(true);
@@ -185,7 +213,7 @@ function ChallengeRow({
         body: JSON.stringify({
           sendAt: new Date(sendAt).toISOString(),
           target,
-          userId: target === "user" ? targetUserId : undefined,
+          userIds: target === "user" ? selectedUserIds : undefined,
         }),
       });
       const data = await res.json();
@@ -226,64 +254,66 @@ function ChallengeRow({
         </p>
       </div>
 
-      <div className="flex gap-2">
-        <button
-          className="btn-secondary flex-1 text-sm"
-          disabled={busy !== null}
-          onClick={() => send("all")}
-        >
-          <Send size={14} strokeWidth={1.75} />
-          {busy === "all" ? "Skickar…" : "Alla nu"}
-        </button>
-        <button
-          className="btn-secondary flex-1 text-sm"
-          disabled={busy !== null}
-          onClick={() => send("random")}
-        >
-          <Shuffle size={14} strokeWidth={1.75} />
-          {busy === "random" ? "Skickar…" : "Slumpad nu"}
-        </button>
+      <div className="space-y-2 border-t border-white/10 pt-3">
+        <p className="section-label">Mottagare</p>
+        <div className="flex gap-2">
+          {TARGET_OPTIONS.map((opt) => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setTarget(opt.key)}
+              className={`flex-1 rounded-xl py-2 text-xs font-medium transition ${
+                target === opt.key ? "bg-accent text-ink" : "bg-white/5 text-muted"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {target === "user" && (
+          <div className="max-h-40 space-y-0.5 overflow-y-auto rounded-xl bg-white/5 p-1.5">
+            {users.length === 0 ? (
+              <p className="px-2 py-1.5 text-sm text-muted">Inga deltagare än.</p>
+            ) : (
+              users.map((u) => (
+                <label
+                  key={u.id}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-cream"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedUserIds.includes(u.id)}
+                    onChange={() => toggleUser(u.id)}
+                    className="h-4 w-4 accent-[color:var(--color-accent)]"
+                  />
+                  {u.displayName}
+                </label>
+              ))
+            )}
+            {selectedUserIds.length > 0 && (
+              <p className="px-2 pt-1 text-xs text-muted">
+                {selectedUserIds.length} vald{selectedUserIds.length === 1 ? "" : "a"}
+              </p>
+            )}
+          </div>
+        )}
       </div>
-      {message && <p className="text-sm text-accent-strong">{message}</p>}
+
+      <button className="btn-secondary w-full text-sm" disabled={sending} onClick={sendNow}>
+        <Send size={14} strokeWidth={1.75} />
+        {sending ? "Skickar…" : "Skicka nu"}
+      </button>
+      {sendMsg && <p className="text-sm text-accent-strong">{sendMsg}</p>}
 
       <div className="space-y-2 border-t border-white/10 pt-3">
-        <p className="section-label">Schemalägg</p>
+        <p className="section-label">Eller schemalägg</p>
         <input
           type="datetime-local"
           className="input-field text-sm"
           value={sendAt}
           onChange={(e) => setSendAt(e.target.value)}
         />
-        <div className="flex gap-2">
-          <select
-            className="input-field flex-1 text-sm"
-            value={target}
-            onChange={(e) => setTarget(e.target.value as "random" | "all" | "user")}
-          >
-            <option value="random">Slumpad person</option>
-            <option value="user">Specifik person</option>
-            <option value="all">Alla</option>
-          </select>
-          {target === "user" && (
-            <select
-              className="input-field flex-1 text-sm"
-              value={targetUserId}
-              onChange={(e) => setTargetUserId(e.target.value ? Number(e.target.value) : "")}
-            >
-              <option value="">Välj person…</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.displayName}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-        <button
-          className="btn-primary w-full text-sm"
-          disabled={scheduling}
-          onClick={schedule}
-        >
+        <button className="btn-primary w-full text-sm" disabled={scheduling} onClick={schedule}>
           <Clock size={14} strokeWidth={1.75} />
           {scheduling ? "Schemalägger…" : "Schemalägg"}
         </button>

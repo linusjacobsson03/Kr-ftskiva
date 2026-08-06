@@ -14,9 +14,10 @@ tävla om kvällens kräftbukal på topplistan.
   förväntat, men den sparade bilden blir rättvänd — som i Snapchat).
 - **Admin**: en egen, lösenordsskyddad yta (`/admin`, se nedan) — inte
   knuten till något visst konto. Där skapas utmaningar (t.ex. "pussa någon
-  på kinden") som skickas direkt eller schemaläggs till alla, en slumpad
-  person, eller en namngiven person. Mottagaren får en pushnotis och har 5
-  minuter på sig att ladda upp ett bildbevis för att få poängen.
+  på kinden") som skickas direkt eller schemaläggs, till alla, en slumpad
+  person, eller valfritt antal namngivna personer (admin kan välja sig själv
+  också — samma lista som alla andra deltagare). Mottagaren får en pushnotis
+  och har 5 minuter på sig att ladda upp ett bildbevis för att få poängen.
 - **Topplista**: poängen summeras live och rankar alla deltagare.
 - **PWA / pushnotiser**: appen går att lägga till på hemskärmen på både
   iPhone och Android och skickar riktiga pushnotiser (Web Push) när en ny
@@ -36,19 +37,36 @@ i en webbläsare, sen kommer du in direkt. Under **"Godkänn"** kan du klicka
 förslag"** för att fylla på en kö med färdiga kräftskiva-utmaningar i fyra
 svårighetsgrader (1p Lätt / 2p Medel / 3p Svår / 5p Vågad) — gå igenom dem en
 och en och godkänn eller avslå. Godkända utmaningar dyker upp under fliken
-**"Utmaningar"**, redo att skickas ut direkt (till alla eller en slumpad
-person) eller **schemaläggas** till en specifik tid och mottagare (slumpad,
-en namngiven person, eller alla) — se fliken **"Schema"** för kommande och
-skickade utmaningar, med möjlighet att avboka. Alla utmaningar har 5 minuter
-på sig att lösas, oavsett svårighetsgrad. Du kan förstås också skapa egna
-utmaningar direkt i "Utmaningar" — de läggs till som redan godkända.
+**"Utmaningar"**, redo att skickas ut direkt eller **schemaläggas**. Samma
+mottagarväljare gäller för båda: **Slumpad**, **Alla**, eller **Välj
+personer** (kryssa i en, flera, eller alla i deltagarlistan — admin finns med
+i samma lista som alla andra och kan alltså välja sig själv). Se fliken
+**"Schema"** för kommande och skickade utmaningar, med möjlighet att avboka.
+Alla utmaningar har 5 minuter på sig att lösas, oavsett svårighetsgrad. Du
+kan förstås också skapa egna utmaningar direkt i "Utmaningar" — de läggs till
+som redan godkända.
 
 Schemaläggningen körs av en enkel poller inbyggd i appens serverprocess
 (kollar var 15:e sekund om något är dags att skickas) — den fungerar så
 länge servern är igång (lokalt, eller `next start` på en dator som är på
 hela kvällen). Kör du på en plattform utan en långlivad serverprocess (t.ex.
-Vercels serverless-funktioner) kommer schemalagda utmaningar **inte**
-skickas ut av sig själva där.
+Vercels serverless-funktioner, som `kr-ftskiva.vercel.app` gör) finns två
+kompletterande vägar istället:
+
+1. **Opportunistisk utskick**: varje gång någon gästs telefon pollar sina
+   aktiva utmaningar (var 5:e–8:e sekund medan appen är öppen), eller admin
+   har fliken "Schema" öppen (var 20:e sekund), triggas en koll av om något
+   är dags att skicka. Så länge *någon* har appen öppen under kvällen —
+   vilket den rimligen är — skickas schemalagda utmaningar ut inom några
+   sekunder efter utsatt tid, helt utan extra konfiguration.
+2. **Vercel Cron** (`vercel.json` → `/api/cron/dispatch-schedule`) som
+   säkerhetsnät för det osannolika fallet att ingen har appen öppen exakt när
+   något är schemalagt. Sätt gärna `CRON_SECRET` som miljövariabel för att
+   låsa endpointen till Vercels egna cron-anrop — se
+   [Vercels dokumentation](https://vercel.com/docs/cron-jobs/manage-cron-jobs#securing-cron-jobs).
+   Observera att Vercels kostnadsfria (Hobby) nivå kan begränsa hur ofta cron
+   jobs faktiskt kör (upp till en gång per dygn) — det är bara en backup,
+   punkt 1 ovan är den primära mekanismen och kräver ingen Pro-plan.
 
 Inget manuellt konfigureringssteg krävs — appen genererar och sparar sin
 egen sessionsnyckel och sina egna VAPID-nycklar (för pushnotiser) i
@@ -93,6 +111,7 @@ du kan alltid utveckla/testa lokalt utan Turso-konto.
 | `SESSION_SECRET` | Nyckel för att signera inloggningssessioner (annars auto-genererad) |
 | `ADMIN_PASSCODE` | Lösenordet för `/admin` (annars slumpas ett fram vid första körningen — se nedan) |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Nycklar för Web Push-notiser (annars auto-genererade) |
+| `CRON_SECRET` | Låser `/api/cron/dispatch-schedule` (Vercel Cron-säkerhetsnätet för schemaläggning, se ovan) till Vercels egna anrop — valfritt |
 | `DATABASE_PATH` | Sökväg till lokal sqlite-fil (annars `data/kraftskiva.db`) — ignoreras om Turso är satt |
 
 ### Admin-lösenord
