@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, ImagePlus, Images, Trash2, X } from "lucide-react";
+import { Camera, ImagePlus, Images, Trash2, Video, X } from "lucide-react";
 import AuthGate from "../components/AuthGate";
 import Avatar from "../components/Avatar";
 import CameraCapture from "../components/CameraCapture";
+import VideoRecorder from "../components/VideoRecorder";
 import { useAuth } from "../providers";
 import { fileToCompressedDataUrl } from "@/lib/compressImage";
 import type { PhotoItem } from "@/lib/types";
@@ -28,6 +29,7 @@ function PhotosContent() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
+  const [showVideoRecorder, setShowVideoRecorder] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -96,20 +98,38 @@ function PhotosContent() {
           onClose={() => setShowCamera(false)}
         />
       )}
+      {showVideoRecorder && (
+        <VideoRecorder
+          onCapture={(dataUrl) => {
+            setPreview(dataUrl);
+            setShowVideoRecorder(false);
+          }}
+          onClose={() => setShowVideoRecorder(false)}
+        />
+      )}
       <div>
         <h1 className="font-display text-2xl font-medium text-cream">Dagens foton</h1>
-        <p className="mt-0.5 text-sm text-muted">Dela bilder från kvällen med hela gänget</p>
+        <p className="mt-0.5 text-sm text-muted">Dela foton och korta klipp från kvällen med hela gänget</p>
       </div>
 
       <div className="card space-y-3 p-4">
         {preview ? (
           <div className="space-y-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={preview}
-              alt="Förhandsvisning"
-              className="max-h-72 w-full rounded-xl object-cover"
-            />
+            {preview.startsWith("data:video/") ? (
+              <video
+                src={preview}
+                controls
+                playsInline
+                className="max-h-72 w-full rounded-xl object-cover"
+              />
+            ) : (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={preview}
+                alt="Förhandsvisning"
+                className="max-h-72 w-full rounded-xl object-cover"
+              />
+            )}
             <input
               className="input-field"
               placeholder="Skriv en bildtext… (valfritt)"
@@ -119,7 +139,11 @@ function PhotosContent() {
             />
             <div className="flex gap-2">
               <button onClick={upload} disabled={uploading} className="btn-primary flex-1">
-                {uploading ? "Laddar upp…" : "Dela foto"}
+                {uploading
+                  ? "Laddar upp…"
+                  : preview.startsWith("data:video/")
+                    ? "Dela video"
+                    : "Dela foto"}
               </button>
               <button
                 onClick={() => {
@@ -135,8 +159,8 @@ function PhotosContent() {
         ) : (
           <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-white/[0.14] py-9 text-center">
             <ImagePlus size={26} strokeWidth={1.25} className="text-accent-strong" />
-            <span className="text-sm font-medium text-cream">Lägg till ett foto</span>
-            <div className="flex gap-2">
+            <span className="text-sm font-medium text-cream">Lägg till ett foto eller en video</span>
+            <div className="flex flex-wrap justify-center gap-2">
               <button
                 type="button"
                 onClick={() => setShowCamera(true)}
@@ -144,6 +168,14 @@ function PhotosContent() {
               >
                 <Camera size={16} strokeWidth={1.75} />
                 Ta foto
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowVideoRecorder(true)}
+                className="btn-secondary text-sm"
+              >
+                <Video size={16} strokeWidth={1.75} />
+                Filma
               </button>
               <label className="btn-secondary cursor-pointer text-sm">
                 <Images size={16} strokeWidth={1.75} />
@@ -173,12 +205,27 @@ function PhotosContent() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {photos.map((photo) => (
             <div key={photo.id} className="card overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={photo.image_data}
-                alt={photo.caption || "Fest-foto"}
-                className="aspect-square w-full object-cover"
-              />
+              {photo.image_data.startsWith("data:video/") ? (
+                <div className="relative">
+                  <video
+                    src={photo.image_data}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    className="aspect-square w-full object-cover"
+                  />
+                  <span className="pointer-events-none absolute left-1.5 top-1.5 rounded-full bg-black/50 p-1 backdrop-blur">
+                    <Video size={11} strokeWidth={2} className="text-white" />
+                  </span>
+                </div>
+              ) : (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={photo.image_data}
+                  alt={photo.caption || "Fest-foto"}
+                  className="aspect-square w-full object-cover"
+                />
+              )}
               <div className="space-y-1 p-2.5">
                 <div className="flex items-center gap-1.5">
                   <Avatar name={photo.display_name} size={16} />

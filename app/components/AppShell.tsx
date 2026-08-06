@@ -25,7 +25,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/[0.06] bg-bg/85 px-4 py-3 backdrop-blur-md">
+      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/[0.06] bg-bg/85 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-md">
         <Link href={user ? "/hem" : "/"} className="flex items-center gap-2.5">
           <Image src="/icons/icon-192.png" alt="" width={28} height={28} className="rounded-lg" />
           <span className="font-display text-lg font-medium tracking-tight text-cream">
