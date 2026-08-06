@@ -458,14 +458,15 @@ function ApprovedTab() {
   const [challenges, setChallenges] = useState<ChallengeTemplate[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [emoji, setEmoji] = useState("🎯");
   const [recipients, setRecipients] = useState<Recipients>({
     target: "random",
     selectedUserIds: [],
   });
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [sendAt, setSendAt] = useState(""); // blank = skicka direkt vid skapande
+  // "HH:MM", blank = skicka direkt vid skapande. Bara en tidpunkt, inget
+  // datum — det här görs alltid samma kväll som festen, så dagens datum
+  // antas alltid (se buildSendAtIso).
+  const [sendTime, setSendTime] = useState("");
   const [points, setPoints] = useState(1);
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -485,6 +486,15 @@ function ApprovedTab() {
       .then((data) => setUsers(data.users ?? []));
   }, [load]);
 
+  /** Combines the chosen "HH:MM" with today's date — null if left blank. */
+  function buildSendAtIso(): string | null {
+    if (!sendTime) return null;
+    const [h, m] = sendTime.split(":").map(Number);
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    return d.toISOString();
+  }
+
   // Creating a challenge here immediately dispatches it too — no detour via
   // the list below. Recipients + tid feed straight into /send or /schedule
   // right after the challenge itself is created.
@@ -501,7 +511,7 @@ function ApprovedTab() {
       const createRes = await fetch("/api/challenges", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description, points, emoji }),
+        body: JSON.stringify({ title, points }),
       });
       const createData = await createRes.json();
       if (!createRes.ok) {
@@ -513,12 +523,13 @@ function ApprovedTab() {
         target: recipients.target,
         userIds: recipients.target === "user" ? recipients.selectedUserIds : undefined,
       };
+      const sendAtIso = buildSendAtIso();
 
-      if (sendAt) {
+      if (sendAtIso) {
         const res = await fetch(`/api/challenges/${challengeId}/schedule`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...dispatchBody, sendAt: new Date(sendAt).toISOString() }),
+          body: JSON.stringify({ ...dispatchBody, sendAt: sendAtIso }),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -542,11 +553,9 @@ function ApprovedTab() {
         setFormSuccess(`Utmaningen skapades och skickades till ${data.sentTo} person${data.sentTo === 1 ? "" : "er"}.`);
       }
 
-      setEmoji("🎯");
       setRecipients({ target: "random", selectedUserIds: [] });
       setTitle("");
-      setDescription("");
-      setSendAt("");
+      setSendTime("");
       setPoints(1);
       await load();
     } finally {
@@ -558,43 +567,28 @@ function ApprovedTab() {
     <div className="space-y-6">
       <form onSubmit={createChallenge} className="card space-y-3 p-4">
         <p className="section-label">Ny utmaning</p>
-        <div className="flex gap-2">
-          <input
-            className="input-field w-16 shrink-0 text-center text-xl"
-            value={emoji}
-            onChange={(e) => setEmoji(e.target.value)}
-            maxLength={4}
-          />
-          <RecipientDropdown
-            users={users}
-            value={recipients}
-            onChange={setRecipients}
-          />
-        </div>
+        <RecipientDropdown
+          users={users}
+          value={recipients}
+          onChange={setRecipients}
+          label="Mottagare"
+        />
         <input
           className="input-field"
-          placeholder="Titel, t.ex. 'Kindpuss-kombo'"
+          placeholder="Utmaning, t.ex. 'Kindpuss-kombo'"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           maxLength={120}
           required
         />
-        <textarea
-          className="input-field"
-          placeholder="Beskrivning / instruktion"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          maxLength={500}
-          rows={2}
-        />
         <div className="flex gap-3">
           <label className="flex-1 text-sm">
             <span className="mb-1.5 block text-xs text-muted">Tid (tomt = skicka direkt)</span>
             <input
-              type="datetime-local"
+              type="time"
               className="input-field"
-              value={sendAt}
-              onChange={(e) => setSendAt(e.target.value)}
+              value={sendTime}
+              onChange={(e) => setSendTime(e.target.value)}
             />
           </label>
           <label className="flex-1 text-sm">
@@ -616,7 +610,7 @@ function ApprovedTab() {
         {formSuccess && <p className="text-sm text-accent-strong">{formSuccess}</p>}
         <button type="submit" disabled={creating} className="btn-primary w-full">
           <Send size={14} strokeWidth={1.75} />
-          {creating ? "Skapar…" : sendAt ? "Skapa och schemalägg" : "Skapa och skicka"}
+          {creating ? "Skapar…" : sendTime ? "Skapa och schemalägg" : "Skapa och skicka"}
         </button>
       </form>
 
