@@ -95,19 +95,27 @@ export function cleanNamePart(raw: string): string {
 export const ADMIN_SESSION_COOKIE = "kraftskiva_admin_session";
 const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // a party weekend and then some
 
-async function getAdminPasscodeHash(): Promise<string> {
-  return getOrCreateSetting("admin_passcode_hash", () => {
-    // Prefer an explicit env var; otherwise fall back to a random passcode
-    // (like the session secret) rather than shipping a real party's
-    // password in the repo. Set ADMIN_PASSCODE in .env.local, or update it
-    // once via the running app/DB, to choose your own.
-    const seed = process.env.ADMIN_PASSCODE || randomBytes(9).toString("base64url");
-    return bcrypt.hashSync(seed, 10);
-  });
+/**
+ * Falls back to a random passcode stashed in the DB (like the session
+ * secret) so the app works out of the box with zero config — only used
+ * when ADMIN_PASSCODE isn't set at all.
+ */
+async function getGeneratedPasscodeHash(): Promise<string> {
+  return getOrCreateSetting("admin_passcode_hash", () =>
+    bcrypt.hashSync(randomBytes(9).toString("base64url"), 10)
+  );
 }
 
 export async function verifyAdminPasscode(passcode: string): Promise<boolean> {
-  const hash = await getAdminPasscodeHash();
+  // ADMIN_PASSCODE always wins when set, checked fresh on every call rather
+  // than only the first time this ever ran. Env vars are commonly added or
+  // changed *after* a project's first deploy — a one-time seed would silently
+  // keep honoring whatever random passcode got generated before ADMIN_PASSCODE
+  // was set, with no obvious way to tell that's what's happening.
+  if (process.env.ADMIN_PASSCODE) {
+    return passcode === process.env.ADMIN_PASSCODE;
+  }
+  const hash = await getGeneratedPasscodeHash();
   return bcrypt.compare(passcode, hash);
 }
 

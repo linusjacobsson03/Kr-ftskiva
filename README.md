@@ -103,12 +103,17 @@ den, oavsett vilket (eller om något) konto de råkar vara inloggade på i
 appen i övrigt. Praktiskt om flera ska kunna hjälpa till att sköta
 utmaningarna under kvällen.
 
-Sätt ditt eget lösenord med `ADMIN_PASSCODE` i `.env.local` **innan** första
-körningen (annars slumpas ett fram och sparas i databasen — kolla i så fall
-`data`-tabellen `settings`, nyckeln `admin_passcode_hash`, för att byta det
-i efterhand). Glömt lösenordet och ingen `ADMIN_PASSCODE` satt? Radera raden
-med `key = 'admin_passcode_hash'` ur `settings`-tabellen så genereras ett
-nytt (eller sätt env-variabeln och starta om).
+Sätt ditt eget lösenord med `ADMIN_PASSCODE` som miljövariabel (t.ex. i
+Vercel → Project Settings → Environment Variables, eller i `.env.local`
+lokalt) — den vinner alltid, oavsett när du sätter den eller ändrar den,
+och oavsett vad som eventuellt redan hunnit generera sig i databasen. Glöm
+inte att deploya om efter att ha lagt till eller ändrat den, annars läser
+inte den körande appen den nya variabeln.
+
+Ingen `ADMIN_PASSCODE` satt alls? Då slumpas ett lösenord fram och sparas i
+databasen (`settings`-tabellen, nyckeln `admin_passcode_hash`) — kolla där
+om du behöver ta reda på det, eller sätt bara `ADMIN_PASSCODE` för att välja
+ditt eget istället.
 
 ## Distribuera till festen
 
