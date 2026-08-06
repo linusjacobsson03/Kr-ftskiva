@@ -20,7 +20,7 @@ import VideoRecorder from "../components/VideoRecorder";
 import Lightbox from "../components/Lightbox";
 import { useAuth } from "../providers";
 import { fileToCompressedDataUrl } from "@/lib/compressImage";
-import { downloadMultiple, extensionForDataUrl } from "@/lib/download";
+import { extensionForDataUrl, saveItems } from "@/lib/download";
 import type { PhotoItem } from "@/lib/types";
 
 function timeAgo(iso: string) {
@@ -128,7 +128,7 @@ function PhotosContent() {
         dataUrl: p.image_data,
         filename: `kraftskiva-${p.id}.${extensionForDataUrl(p.image_data)}`,
       }));
-    await downloadMultiple(items);
+    await saveItems(items);
   }
 
   function onThumbnailClick(index: number, id: number) {

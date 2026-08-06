@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Download, X } from "lucide-react";
-import { downloadDataUrl, extensionForDataUrl } from "@/lib/download";
+import { extensionForDataUrl, saveItems } from "@/lib/download";
 
 export interface LightboxItem {
   id: number;
@@ -61,7 +61,11 @@ export default function Lightbox({
           </span>
         )}
         <button
-          onClick={() => downloadDataUrl(item.url, `kraftskiva-${item.id}.${extensionForDataUrl(item.url)}`)}
+          onClick={() =>
+            saveItems([
+              { dataUrl: item.url, filename: `kraftskiva-${item.id}.${extensionForDataUrl(item.url)}` },
+            ])
+          }
           aria-label="Ladda ner"
           className="rounded-full bg-white/10 p-2.5 text-white backdrop-blur"
         >
