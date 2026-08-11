@@ -53,11 +53,14 @@ export default function WelcomePage() {
         sizes="100vw"
         className="object-cover"
       />
-      <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/35 to-black/95" />
+      {/* Photo fades all the way down to the page's own background color, so
+          it blends seamlessly into the app rather than sitting on top of it
+          as a tinted rectangle. */}
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/20 via-60% to-[color:var(--color-bg)]" />
       <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/40 to-transparent" />
 
-      <div className="relative z-10 mt-auto flex flex-col items-center gap-5 px-6 pb-10 pt-28 text-center">
-        <span className="chip bg-black/35 text-cream backdrop-blur">
+      <div className="relative z-10 mt-auto flex flex-col items-center gap-4 px-6 pb-10 pt-28 text-center">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-medium text-cream shadow-lg backdrop-blur-xl">
           <PartyPopper size={13} strokeWidth={2.25} className="text-accent-strong" />
           Du är inbjuden
         </span>
@@ -66,12 +69,14 @@ export default function WelcomePage() {
           {EVENT.title}
         </h1>
 
-        <div className="flex flex-col items-center gap-1.5 text-[0.95rem] text-cream/90">
-          <span className="inline-flex items-center gap-1.5">
+        {/* Frosted-glass info card — same material language as the RSVP
+            control below, matching the reference invite design. */}
+        <div className="flex w-full max-w-xs flex-col gap-2 rounded-2xl border border-white/20 bg-white/10 px-5 py-4 text-[0.95rem] text-cream shadow-lg backdrop-blur-xl">
+          <span className="inline-flex items-center justify-center gap-2">
             <CalendarDays size={15} strokeWidth={1.75} className="text-accent-strong" />
             {EVENT.dateLabel} · {EVENT.timeLabel}
           </span>
-          <span className="inline-flex items-center gap-1.5">
+          <span className="inline-flex items-center justify-center gap-2">
             <MapPin size={15} strokeWidth={1.75} className="text-accent-strong" />
             {EVENT.venue}
           </span>
@@ -82,16 +87,16 @@ export default function WelcomePage() {
           {attending !== null && ` · ${attending} har redan tackat ja`}
         </p>
 
-        <div className="mt-2 flex w-full max-w-xs overflow-hidden rounded-2xl border border-white/15 bg-black/25 backdrop-blur-sm">
+        <div className="mt-1 flex w-full max-w-xs gap-1.5 rounded-2xl border border-white/20 bg-white/10 p-1.5 shadow-lg backdrop-blur-xl">
           <button
             onClick={() => router.push("/login")}
-            className="flex flex-1 items-center justify-center gap-1.5 bg-accent py-3.5 text-sm font-semibold text-ink transition active:scale-[0.98]"
+            className="flex-1 rounded-xl bg-accent py-3 text-sm font-semibold text-ink transition active:scale-[0.98]"
           >
             Jag kommer
           </button>
           <button
             onClick={() => router.push("/kan-ej")}
-            className="flex-1 py-3.5 text-sm font-medium text-cream/80 transition active:scale-[0.98]"
+            className="flex-1 rounded-xl py-3 text-sm font-medium text-cream/85 transition active:scale-[0.98] active:bg-white/10"
           >
             Kan tyvärr inte
           </button>
