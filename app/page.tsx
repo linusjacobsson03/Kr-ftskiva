@@ -3,12 +3,15 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { PartyPopper } from "lucide-react";
+import { CalendarDays, MapPin, PartyPopper } from "lucide-react";
 import { useAuth } from "./providers";
 
-/** Edit these two to match your own party. */
+/** Edit these to match your own party. */
 const EVENT = {
-  place: "Brattön",
+  title: "Välkommen till kräftskiva på Brattön",
+  dateLabel: "Lördag 19 september",
+  timeLabel: "16:00",
+  venue: "Lilla Brattön, båthuset",
   invited: 45,
 };
 
@@ -39,35 +42,60 @@ export default function WelcomePage() {
   }
 
   return (
-    <div className="flex min-h-[calc(100dvh-64px)] flex-col items-center justify-center px-4 py-12 text-center">
+    <div className="relative flex min-h-[calc(100dvh-64px)] flex-col overflow-hidden">
+      {/* Full-bleed party photo, darkened toward the bottom so the invite
+          text stays readable without hiding the picture itself. */}
       <Image
-        src="/icons/icon-192.png"
-        alt=""
-        width={72}
-        height={72}
-        className="rounded-2xl shadow-[0_20px_50px_-20px_rgba(201,161,90,0.4)]"
+        src="/party-hero.jpg"
+        alt="Förra årets kräftskiva på Brattön"
+        fill
+        priority
+        sizes="100vw"
+        className="object-cover"
       />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/35 to-black/95" />
+      <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/40 to-transparent" />
 
-      <h1 className="font-display mt-6 max-w-xs text-4xl font-medium leading-tight tracking-tight text-cream">
-        Kräftskiva på {EVENT.place}
-      </h1>
-      <p className="mt-3 max-w-xs font-display text-[1.05rem] italic text-muted">
-        En kväll med kräftor, utmaningar och gott sällskap — du är inbjuden!
-      </p>
+      <div className="relative z-10 mt-auto flex flex-col items-center gap-5 px-6 pb-10 pt-28 text-center">
+        <span className="chip bg-black/35 text-cream backdrop-blur">
+          <PartyPopper size={13} strokeWidth={2.25} className="text-accent-strong" />
+          Du är inbjuden
+        </span>
 
-      <div className="chip mt-6">
-        {EVENT.invited} inbjudna
-        {attending !== null && ` · ${attending} har redan tackat ja`}
-      </div>
+        <h1 className="font-display max-w-xs text-3xl font-medium leading-tight tracking-tight text-cream drop-shadow-[0_2px_12px_rgba(0,0,0,0.5)]">
+          {EVENT.title}
+        </h1>
 
-      <div className="mt-9 flex w-full max-w-xs flex-col gap-3">
-        <button onClick={() => router.push("/login")} className="btn-primary w-full">
-          <PartyPopper size={17} strokeWidth={1.75} />
-          Jag kommer
-        </button>
-        <button onClick={() => router.push("/kan-ej")} className="btn-secondary w-full">
-          Jag kan tyvärr inte
-        </button>
+        <div className="flex flex-col items-center gap-1.5 text-[0.95rem] text-cream/90">
+          <span className="inline-flex items-center gap-1.5">
+            <CalendarDays size={15} strokeWidth={1.75} className="text-accent-strong" />
+            {EVENT.dateLabel} · {EVENT.timeLabel}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <MapPin size={15} strokeWidth={1.75} className="text-accent-strong" />
+            {EVENT.venue}
+          </span>
+        </div>
+
+        <p className="text-xs text-cream/60">
+          {EVENT.invited} inbjudna
+          {attending !== null && ` · ${attending} har redan tackat ja`}
+        </p>
+
+        <div className="mt-2 flex w-full max-w-xs overflow-hidden rounded-2xl border border-white/15 bg-black/25 backdrop-blur-sm">
+          <button
+            onClick={() => router.push("/login")}
+            className="flex flex-1 items-center justify-center gap-1.5 bg-accent py-3.5 text-sm font-semibold text-ink transition active:scale-[0.98]"
+          >
+            Jag kommer
+          </button>
+          <button
+            onClick={() => router.push("/kan-ej")}
+            className="flex-1 py-3.5 text-sm font-medium text-cream/80 transition active:scale-[0.98]"
+          >
+            Kan tyvärr inte
+          </button>
+        </div>
       </div>
     </div>
   );

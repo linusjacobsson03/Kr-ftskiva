@@ -54,7 +54,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         )}
       </header>
 
-      <main className="flex-1 pb-24">{children}</main>
+      {/* pb-24 only when the bottom nav is actually showing (logged-in users)
+          — otherwise it leaves a dead gap of empty space below the content
+          on public pages like the welcome screen. */}
+      <main className={`flex-1 ${user ? "pb-24" : ""}`}>{children}</main>
 
       {user && (
         <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-white/[0.06] bg-bg/90 backdrop-blur-md">
