@@ -55,12 +55,20 @@ body::after {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-h1,
-h2,
-h3,
-.font-display {
-  font-family: var(--font-display);
-  letter-spacing: -0.01em;
+/* @layer base (not left bare) so a utility like font-sans/font-bold on a
+   specific <h1> can still override this default — see the @layer components
+   comment below for why unlayered CSS always wins over utilities otherwise
+   regardless of class order, which is what silently forced every h1/h2/h3
+   into the serif display font even where a page explicitly asked for the
+   sans-serif one. */
+@layer base {
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
 }
 
 /* ---------- Building blocks ----------

@@ -3,14 +3,13 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { CalendarDays, MapPin, PartyPopper } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { useAuth } from "./providers";
 
 /** Edit these to match your own party. */
 const EVENT = {
-  title: "Välkommen till kräftskiva på Brattön",
-  dateLabel: "Lördag 19 september",
-  timeLabel: "16:00",
+  title: "Kräftskiva på Brattön",
+  dateLabel: "Lördag 19 september, 16:00",
   venue: "Lilla Brattön, båthuset",
   invited: 45,
 };
@@ -43,8 +42,10 @@ export default function WelcomePage() {
 
   return (
     <div className="relative flex min-h-[calc(100dvh-64px)] flex-col overflow-hidden">
-      {/* Full-bleed party photo, darkened toward the bottom so the invite
-          text stays readable without hiding the picture itself. */}
+      {/* Full-bleed party photo. Sharp at the top, then the panel below
+          progressively blurs it (via backdrop-blur + a fade mask) instead of
+          just darkening it — a soft, frosted transition rather than a flat
+          tinted rectangle. */}
       <Image
         src="/party-hero.jpg"
         alt="Förra årets kräftskiva på Brattön"
@@ -53,52 +54,42 @@ export default function WelcomePage() {
         sizes="100vw"
         className="object-cover"
       />
-      {/* Photo fades all the way down to the page's own background color, so
-          it blends seamlessly into the app rather than sitting on top of it
-          as a tinted rectangle. */}
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/20 via-60% to-[color:var(--color-bg)]" />
-      <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/40 to-transparent" />
+      <div
+        className="absolute inset-x-0 bottom-0 h-[65%] backdrop-blur-2xl"
+        style={{ maskImage: "linear-gradient(to bottom, transparent, black 45%)" }}
+      />
+      {/* Darkens + blends into the page background underneath the blur, so
+          text stays legible and the photo never ends as a hard edge. */}
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/35 via-55% to-[color:var(--color-bg)]" />
+      <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/35 to-transparent" />
 
-      <div className="relative z-10 mt-auto flex flex-col items-center gap-4 px-6 pb-10 pt-28 text-center">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-medium text-cream shadow-lg backdrop-blur-xl">
-          <PartyPopper size={13} strokeWidth={2.25} className="text-accent-strong" />
-          Du är inbjuden
-        </span>
-
-        <h1 className="font-display max-w-xs text-3xl font-medium leading-tight tracking-tight text-cream drop-shadow-[0_2px_12px_rgba(0,0,0,0.5)]">
+      <div className="relative z-10 mt-auto flex flex-col items-center gap-2.5 px-6 pb-10 pt-28 text-center">
+        <h1 className="max-w-xs font-sans text-[2.1rem] font-bold leading-[1.1] tracking-tight text-cream">
           {EVENT.title}
         </h1>
+        <p className="text-[0.95rem] text-cream/80">{EVENT.dateLabel}</p>
+        <p className="text-[0.95rem] text-cream/80">{EVENT.venue}</p>
 
-        {/* Frosted-glass info card — same material language as the RSVP
-            control below, matching the reference invite design. */}
-        <div className="flex w-full max-w-xs flex-col gap-2 rounded-2xl border border-white/20 bg-white/10 px-5 py-4 text-[0.95rem] text-cream shadow-lg backdrop-blur-xl">
-          <span className="inline-flex items-center justify-center gap-2">
-            <CalendarDays size={15} strokeWidth={1.75} className="text-accent-strong" />
-            {EVENT.dateLabel} · {EVENT.timeLabel}
-          </span>
-          <span className="inline-flex items-center justify-center gap-2">
-            <MapPin size={15} strokeWidth={1.75} className="text-accent-strong" />
-            {EVENT.venue}
-          </span>
-        </div>
-
-        <p className="text-xs text-cream/60">
+        <p className="mt-1 text-xs text-cream/55">
           {EVENT.invited} inbjudna
           {attending !== null && ` · ${attending} har redan tackat ja`}
         </p>
 
-        <div className="mt-1 flex w-full max-w-xs gap-1.5 rounded-2xl border border-white/20 bg-white/10 p-1.5 shadow-lg backdrop-blur-xl">
+        <div className="mt-4 flex w-full max-w-xs items-stretch overflow-hidden rounded-full border border-white/15 bg-black/25 p-1 backdrop-blur-md">
           <button
             onClick={() => router.push("/login")}
-            className="flex-1 rounded-xl bg-accent py-3 text-sm font-semibold text-ink transition active:scale-[0.98]"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-cream py-2.5 text-sm font-semibold text-ink transition active:scale-[0.97]"
           >
+            <Check size={15} strokeWidth={2.5} className="text-success" />
             Jag kommer
           </button>
+          <div className="my-1.5 w-px bg-white/15" />
           <button
             onClick={() => router.push("/kan-ej")}
-            className="flex-1 rounded-xl py-3 text-sm font-medium text-cream/85 transition active:scale-[0.98] active:bg-white/10"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-full py-2.5 text-sm font-medium text-cream/85 transition active:scale-[0.97]"
           >
-            Kan tyvärr inte
+            <X size={15} strokeWidth={2.5} className="text-danger" />
+            Kan inte
           </button>
         </div>
       </div>
