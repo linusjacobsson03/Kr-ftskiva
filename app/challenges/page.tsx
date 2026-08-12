@@ -5,6 +5,7 @@ import { Camera, CheckCircle2, Clock, ImageOff, Images } from "lucide-react";
 import Avatar from "../components/Avatar";
 import CameraCapture from "../components/CameraCapture";
 import Countdown from "../components/Countdown";
+import PushOptIn from "../components/PushOptIn";
 import { useAuth } from "../providers";
 import { fileToCompressedDataUrl } from "@/lib/compressImage";
 import type { HistoryAssignment, PendingAssignment, Submission } from "@/lib/types";
@@ -181,6 +182,8 @@ function ChallengesContent() {
           Samla poäng och vinn kvällens kräftbukal
         </p>
       </div>
+
+      {user && <PushOptIn />}
 
       {!loading && pending.length === 0 && (
         <div className="card flex flex-col items-center gap-2 p-8 text-center">

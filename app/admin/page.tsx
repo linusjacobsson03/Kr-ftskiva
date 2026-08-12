@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, Clock, Copy, Lock, MessageSquare, Send, Sparkles, Trash2, UserPlus, X } from "lucide-react";
+import { Check, ChevronDown, Clock, Copy, Lock, MessageSquare, PartyPopper, Send, Sparkles, Trash2, UserPlus, X } from "lucide-react";
 import AdminPasscodeGate from "../components/AdminPasscodeGate";
 import type { ChallengeTemplate, ScheduleEntry, UserOption } from "@/lib/types";
 
@@ -739,30 +739,62 @@ function GuestsTab() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [partyBusy, setPartyBusy] = useState(false);
+  const [partyLive, setPartyLive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { quiet?: boolean }) => {
+    if (!opts?.quiet) setLoading(true);
     try {
-      const res = await fetch("/api/admin/guests", { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Kunde inte hämta gäster.");
+      const [guestsRes, partyRes] = await Promise.all([
+        fetch("/api/admin/guests", { cache: "no-store" }),
+        fetch("/api/admin/party-mode", { cache: "no-store" }),
+      ]);
+      const guestsData = await guestsRes.json();
+      const partyData = await partyRes.json();
+      if (!guestsRes.ok) {
+        setError(guestsData.error || "Kunde inte hämta gäster.");
         return;
       }
-      setGuests(data.guests ?? []);
+      setGuests(guestsData.guests ?? []);
+      if (partyRes.ok) setPartyLive(!!partyData.partyLive);
       setError(null);
     } catch {
       setError("Kunde inte nå servern.");
     } finally {
-      setLoading(false);
+      if (!opts?.quiet) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void load();
+    const id = setInterval(() => void load({ quiet: true }), 8000);
+    return () => clearInterval(id);
   }, [load]);
+
+  async function togglePartyLive() {
+    setPartyBusy(true);
+    setError(null);
+    const next = !partyLive;
+    try {
+      const res = await fetch("/api/admin/party-mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ partyLive: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Kunde inte uppdatera.");
+        return;
+      }
+      setPartyLive(!!data.partyLive);
+    } catch {
+      setError("Kunde inte nå servern.");
+    } finally {
+      setPartyBusy(false);
+    }
+  }
 
   async function addGuest(e: React.FormEvent) {
     e.preventDefault();
@@ -823,6 +855,42 @@ function GuestsTab() {
 
   return (
     <div className="space-y-5">
+      <div
+        className={`card space-y-3 p-5 ${
+          partyLive ? "border-accent/35 bg-accent/[0.07]" : ""
+        }`}
+      >
+        <div className="flex items-start gap-3">
+          <PartyPopper
+            size={20}
+            strokeWidth={1.75}
+            className={`mt-0.5 shrink-0 ${partyLive ? "text-accent-strong" : "text-muted"}`}
+          />
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold text-cream">
+              {partyLive ? "Kvällen är igång" : "Inför kvällen"}
+            </h2>
+            <p className="mt-1 text-xs leading-relaxed text-muted">
+              {partyLive
+                ? "Gästernas inbjudningslänkar går rakt in i appen — ingen inbjudningssida."
+                : "När det är dags: tryck här så landar gästerna direkt i appen när de öppnar sin länk."}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={togglePartyLive}
+          disabled={partyBusy}
+          className={partyLive ? "btn-secondary w-full" : "btn-primary w-full"}
+        >
+          {partyBusy
+            ? "…"
+            : partyLive
+              ? "Visa inbjudan igen"
+              : "Öppna appen för gästerna"}
+        </button>
+      </div>
+
       <div className="card space-y-3 p-5">
         <div>
           <h2 className="text-sm font-semibold text-cream">Lägg till gäst</h2>
@@ -864,7 +932,28 @@ function GuestsTab() {
               className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="min-w-0">
-                <p className="truncate font-medium text-cream">{g.displayName}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="truncate font-medium text-cream">{g.displayName}</p>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide ${
+                      g.rsvpStatus === "yes"
+                        ? "bg-success/15 text-success"
+                        : g.rsvpStatus === "maybe"
+                          ? "bg-accent/15 text-accent-strong"
+                          : g.rsvpStatus === "no"
+                            ? "bg-danger/15 text-danger"
+                            : "bg-white/[0.06] text-muted"
+                    }`}
+                  >
+                    {g.rsvpStatus === "yes"
+                      ? "Jag kommer"
+                      : g.rsvpStatus === "maybe"
+                        ? "Kanske"
+                        : g.rsvpStatus === "no"
+                          ? "Kan inte"
+                          : "Ej svarat"}
+                  </span>
+                </div>
                 {g.inviteUrl && (
                   <p className="mt-0.5 truncate text-xs text-muted">{g.inviteUrl}</p>
                 )}

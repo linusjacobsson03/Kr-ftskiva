@@ -2,12 +2,14 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import InviteHero from "../../components/InviteHero";
 import { useAuth } from "../../providers";
 
 /**
  * Personal invite from SMS: /i/<token>
- * Shows the photo invite with "Hej, {name}" and claims their account session.
+ * Shows the photo invite with "Hej, {name}" — unless admin has flipped
+ * "party live", in which case the guest lands straight in the app.
  */
 export default function PersonalInvitePage({
   params,
@@ -16,6 +18,7 @@ export default function PersonalInvitePage({
 }) {
   const { token } = use(params);
   const { refresh } = useAuth();
+  const router = useRouter();
   const [firstName, setFirstName] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [rsvp, setRsvp] = useState<"yes" | "maybe" | "no" | null>(null);
@@ -36,13 +39,16 @@ export default function PersonalInvitePage({
           if (!cancelled) setError(data.error || "Inbjudan hittades inte.");
           return;
         }
-        if (!cancelled) {
-          setFirstName(data.firstName ?? null);
-          setDisplayName(data.displayName ?? null);
-          setRsvp(data.rsvpStatus ?? null);
-          setReady(true);
-        }
         await refresh();
+        if (cancelled) return;
+        if (data.partyLive) {
+          router.replace("/");
+          return;
+        }
+        setFirstName(data.firstName ?? null);
+        setDisplayName(data.displayName ?? null);
+        setRsvp(data.rsvpStatus ?? null);
+        setReady(true);
       } catch {
         if (!cancelled) setError("Kunde inte öppna inbjudan.");
       }
@@ -51,7 +57,7 @@ export default function PersonalInvitePage({
     return () => {
       cancelled = true;
     };
-  }, [token, refresh]);
+  }, [token, refresh, router]);
 
   async function saveRsvp(value: "yes" | "maybe" | "no") {
     setRsvp(value);
