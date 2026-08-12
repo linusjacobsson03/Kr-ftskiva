@@ -35,6 +35,7 @@ export function useIsStandalone() {
 export function usePushSubscription() {
   const [status, setStatus] = useState<PushStatus>("unknown");
   const [busy, setBusy] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
 
   const refreshStatus = useCallback(async () => {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
@@ -52,7 +53,27 @@ export function usePushSubscription() {
     try {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
-      setStatus(sub ? "subscribed" : "not-subscribed");
+      if (!sub) {
+        setStatus("not-subscribed");
+        return;
+      }
+      // Re-sync to server — local PushManager sub alone is not enough
+      // (e.g. permission granted before login, or previous save failed).
+      try {
+        const saveRes = await fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(sub),
+        });
+        if (saveRes.status === 401) {
+          // Logged out: keep local sub, but treat as not ready for our sends.
+          setStatus("not-subscribed");
+          return;
+        }
+      } catch {
+        // Network blip — still show subscribed if browser has it.
+      }
+      setStatus("subscribed");
     } catch {
       setStatus("not-subscribed");
     }
@@ -64,9 +85,11 @@ export function usePushSubscription() {
 
   const subscribe = useCallback(async () => {
     setBusy(true);
+    setLastError(null);
     try {
       if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
         setStatus("unsupported");
+        setLastError("Öppna från hemskärmsappen (iPhone) — Safari-fliken stödjer inte notiser.");
         return false;
       }
 
@@ -79,6 +102,7 @@ export function usePushSubscription() {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
         setStatus("denied");
+        setLastError("Du måste tillåta notiser i dialogen.");
         return false;
       }
 
@@ -111,6 +135,7 @@ export function usePushSubscription() {
       return true;
     } catch (err) {
       console.error("Push subscribe failed", err);
+      setLastError(err instanceof Error ? err.message : "Kunde inte aktivera notiser");
       await refreshStatus();
       return false;
     } finally {
@@ -118,5 +143,5 @@ export function usePushSubscription() {
     }
   }, [refreshStatus]);
 
-  return { status, busy, subscribe, refreshStatus };
+  return { status, busy, subscribe, refreshStatus, lastError };
 }

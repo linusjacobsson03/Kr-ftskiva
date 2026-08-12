@@ -45,12 +45,19 @@ export async function GET(request: Request) {
       "SELECT * FROM users ORDER BY created_at DESC, first_name, last_name"
     );
 
+    const subCounts = await getAll<{ user_id: number; n: number }>(
+      `SELECT user_id, COUNT(*) as n FROM push_subscriptions GROUP BY user_id`
+    );
+    const countByUser = new Map(subCounts.map((r) => [r.user_id, Number(r.n)]));
+
     return NextResponse.json({
       guests: users.map((u) => ({
         ...sanitizeUser(u),
         inviteToken: u.invite_token,
         inviteUrl: u.invite_token ? inviteUrlFor(u.invite_token, request) : null,
         rsvpStatus: u.rsvp_status,
+        pushEnabled: (countByUser.get(u.id) ?? 0) > 0,
+        pushSubscriptions: countByUser.get(u.id) ?? 0,
       })),
     });
   } catch (err) {

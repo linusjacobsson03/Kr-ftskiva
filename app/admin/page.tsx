@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, Clock, Copy, Lock, MessageSquare, PartyPopper, Send, Sparkles, Trash2, UserPlus, X } from "lucide-react";
+import { Bell, Check, ChevronDown, Clock, Copy, Lock, MessageSquare, PartyPopper, Send, Sparkles, Trash2, UserPlus, X } from "lucide-react";
 import AdminPasscodeGate from "../components/AdminPasscodeGate";
 import type { ChallengeTemplate, ScheduleEntry, UserOption } from "@/lib/types";
 
@@ -283,7 +283,14 @@ function ChallengeRow({
         setSendMsg(data.error || "Kunde inte skicka.");
         return;
       }
-      setSendMsg(`Skickat till ${data.sentTo} person${data.sentTo === 1 ? "" : "er"}`);
+      const base = `Skickat till ${data.sentTo} person${data.sentTo === 1 ? "" : "er"}`;
+      const pushPart =
+        data.pushesAttempted === 0
+          ? " — ingen notis (ingen har aktiverat)"
+          : data.pushesDelivered === 0
+            ? " — push misslyckades"
+            : ` — ${data.pushesDelivered} notis${data.pushesDelivered === 1 ? "" : "er"} skickad`;
+      setSendMsg(data.pushWarning ? `${base}. ${data.pushWarning}` : `${base}${pushPart}`);
       onSent();
     } finally {
       setSending(false);
@@ -550,7 +557,14 @@ function ApprovedTab() {
           await load();
           return;
         }
-        setFormSuccess(`Utmaningen skapades och skickades till ${data.sentTo} person${data.sentTo === 1 ? "" : "er"}.`);
+        const base = `Utmaningen skapades och skickades till ${data.sentTo} person${data.sentTo === 1 ? "" : "er"}`;
+        setFormSuccess(
+          data.pushWarning
+            ? `${base}. ${data.pushWarning}`
+            : data.pushesDelivered > 0
+              ? `${base} (${data.pushesDelivered} notis${data.pushesDelivered === 1 ? "" : "er"}).`
+              : `${base}.`
+        );
       }
 
       setRecipients({ target: "random", selectedUserIds: [] });
@@ -735,6 +749,8 @@ function GuestsTab() {
       displayName: string;
       inviteUrl: string | null;
       rsvpStatus: "yes" | "maybe" | "no" | null;
+      pushEnabled: boolean;
+      pushSubscriptions: number;
     }[]
   >([]);
   const [loading, setLoading] = useState(true);
@@ -743,6 +759,8 @@ function GuestsTab() {
   const [partyLive, setPartyLive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [testPushId, setTestPushId] = useState<number | null>(null);
+  const [testMsg, setTestMsg] = useState<string | null>(null);
 
   const load = useCallback(async (opts?: { quiet?: boolean }) => {
     if (!opts?.quiet) setLoading(true);
@@ -836,6 +854,26 @@ function GuestsTab() {
     }
   }
 
+  async function testPush(id: number) {
+    setTestPushId(id);
+    setTestMsg(null);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/guests/${id}/test-push`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Kunde inte skicka testnotis.");
+        return;
+      }
+      setTestMsg(`Testnotis skickad till ${guests.find((g) => g.id === id)?.displayName ?? "gästen"}.`);
+      setTimeout(() => setTestMsg(null), 4000);
+    } catch {
+      setError("Kunde inte nå servern.");
+    } finally {
+      setTestPushId(null);
+    }
+  }
+
   function smsHref(guest: { displayName: string; inviteUrl: string | null }) {
     if (!guest.inviteUrl) return "#";
     const body = `Hej ${guest.displayName}! 🦞 Du är inbjuden till kräftskivan på Brattön. Öppna din personliga inbjudan här: ${guest.inviteUrl}`;
@@ -916,11 +954,18 @@ function GuestsTab() {
         {error && (
           <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>
         )}
+        {testMsg && (
+          <p className="rounded-lg bg-success/10 px-3 py-2 text-sm text-success">{testMsg}</p>
+        )}
       </div>
 
       <div className="space-y-2">
         <p className="section-label">
           {loading ? "Laddar…" : `${guests.length} inbjudna`}
+        </p>
+        <p className="text-xs text-muted">
+          Notiser kräver att gästen öppnat appen från hemskärmen (iPhone) och tryckt Aktivera.
+          Utmaningar syns i appen även utan notis.
         </p>
         {!loading && guests.length === 0 && (
           <p className="text-sm text-muted">Inga gäster ännu — lägg till den första ovan.</p>
@@ -953,12 +998,35 @@ function GuestsTab() {
                           ? "Kan inte"
                           : "Ej svarat"}
                   </span>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide ${
+                      g.pushEnabled
+                        ? "bg-success/15 text-success"
+                        : "bg-white/[0.06] text-muted"
+                    }`}
+                  >
+                    {g.pushEnabled ? "Notiser på" : "Notiser av"}
+                  </span>
                 </div>
                 {g.inviteUrl && (
                   <p className="mt-0.5 truncate text-xs text-muted">{g.inviteUrl}</p>
                 )}
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => void testPush(g.id)}
+                  disabled={testPushId === g.id}
+                  className="btn-secondary !px-3 !py-2 text-xs"
+                  title={
+                    g.pushEnabled
+                      ? "Skicka testnotis"
+                      : "Ingen prenumeration sparad — aktivera först från hemskärmsappen"
+                  }
+                >
+                  <Bell size={14} strokeWidth={1.75} />
+                  {testPushId === g.id ? "…" : "Testnotis"}
+                </button>
                 <a
                   href={smsHref(g)}
                   className="btn-secondary !px-3 !py-2 text-xs"

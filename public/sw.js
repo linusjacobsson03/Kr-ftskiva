@@ -14,30 +14,38 @@ self.addEventListener("fetch", (event) => {
 });
 
 self.addEventListener("push", (event) => {
-  let data = {
-    title: "Kräftskiva",
-    body: "Något nytt har hänt!",
-    url: "/challenges",
-    tag: "kraftskiva",
-  };
-  if (event.data) {
-    try {
-      data = { ...data, ...event.data.json() };
-    } catch {
-      data.body = event.data.text();
-    }
-  }
+  // All work must finish inside waitUntil — iOS treats late showNotification
+  // as a silent push and can revoke the subscription after a few of those.
+  event.waitUntil(
+    (async () => {
+      let data = {
+        title: "Kräftskiva",
+        body: "Något nytt har hänt!",
+        url: "/challenges",
+        tag: "kraftskiva",
+      };
+      if (event.data) {
+        try {
+          data = { ...data, ...event.data.json() };
+        } catch {
+          try {
+            data.body = event.data.text();
+          } catch {
+            // keep defaults
+          }
+        }
+      }
 
-  const options = {
-    body: data.body,
-    icon: "/icons/icon-192.png",
-    badge: "/icons/icon-192.png",
-    tag: data.tag || "kraftskiva",
-    renotify: true,
-    data: { url: data.url || "/challenges" },
-  };
-
-  event.waitUntil(self.registration.showNotification(data.title, options));
+      await self.registration.showNotification(data.title, {
+        body: data.body,
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-192.png",
+        tag: data.tag || "kraftskiva",
+        renotify: true,
+        data: { url: data.url || "/challenges" },
+      });
+    })()
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {
