@@ -23,36 +23,43 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
 
+  // The welcome screen ("/") wants to be the full-bleed photo card on its
+  // own, edge to edge including behind the status bar/notch — no app chrome
+  // on top of it at all, not even the logo bar.
+  const isWelcome = pathname === "/";
+
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/[0.06] bg-bg/85 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-md">
-        <Link href={user ? "/hem" : "/"} className="flex items-center gap-2.5">
-          <Image src="/icons/icon-192.png" alt="" width={28} height={28} className="rounded-lg" />
-          <span className="font-display text-lg font-medium tracking-tight text-cream">
-            Kräftskiva
-          </span>
-        </Link>
-        {user && (
-          <div className="flex items-center gap-2.5">
-            <span className="chip">
-              <Star size={13} strokeWidth={2.25} className="fill-accent-strong text-accent-strong" />
-              {user.points}
+      {!isWelcome && (
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/[0.06] bg-bg/85 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-md">
+          <Link href={user ? "/hem" : "/"} className="flex items-center gap-2.5">
+            <Image src="/icons/icon-192.png" alt="" width={28} height={28} className="rounded-lg" />
+            <span className="font-display text-lg font-medium tracking-tight text-cream">
+              Kräftskiva
             </span>
-            <Avatar name={user.displayName} size={30} className="hidden sm:inline-flex" />
-            <button
-              onClick={async () => {
-                await logout();
-                router.push("/login");
-              }}
-              aria-label="Logga ut"
-              title="Logga ut"
-              className="rounded-full p-2 text-muted transition hover:bg-white/[0.06] hover:text-cream"
-            >
-              <LogOut size={17} strokeWidth={1.75} />
-            </button>
-          </div>
-        )}
-      </header>
+          </Link>
+          {user && (
+            <div className="flex items-center gap-2.5">
+              <span className="chip">
+                <Star size={13} strokeWidth={2.25} className="fill-accent-strong text-accent-strong" />
+                {user.points}
+              </span>
+              <Avatar name={user.displayName} size={30} className="hidden sm:inline-flex" />
+              <button
+                onClick={async () => {
+                  await logout();
+                  router.push("/login");
+                }}
+                aria-label="Logga ut"
+                title="Logga ut"
+                className="rounded-full p-2 text-muted transition hover:bg-white/[0.06] hover:text-cream"
+              >
+                <LogOut size={17} strokeWidth={1.75} />
+              </button>
+            </div>
+          )}
+        </header>
+      )}
 
       {/* pb-24 only when the bottom nav is actually showing (logged-in users)
           — otherwise it leaves a dead gap of empty space below the content
