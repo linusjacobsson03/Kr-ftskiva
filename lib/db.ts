@@ -165,6 +165,19 @@ async function ensureMigrations(): Promise<void> {
     "suggested_time",
     `ALTER TABLE challenges ADD COLUMN suggested_time TEXT`
   );
+  // Unique magic-link token per guest — admin creates the account, SMS
+  // carries the link, opening it logs them in (no self-registration).
+  await ensureColumn("users", "invite_token", `ALTER TABLE users ADD COLUMN invite_token TEXT`);
+  await ensureColumn(
+    "users",
+    "rsvp_status",
+    `ALTER TABLE users ADD COLUMN rsvp_status TEXT`
+  );
+  // SQLite UNIQUE allows multiple NULLs, so this only enforces uniqueness
+  // among real invite tokens.
+  await getClient().execute(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_invite_token ON users(invite_token)`
+  );
 }
 
 function getReady(): Promise<void> {
@@ -265,6 +278,8 @@ export interface UserRow {
   is_admin: number;
   avatar_emoji: string;
   created_at: string;
+  invite_token: string | null;
+  rsvp_status: "yes" | "maybe" | "no" | null;
 }
 
 export interface PhotoRow {

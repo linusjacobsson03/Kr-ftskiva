@@ -16,11 +16,6 @@ const MAX_VIDEO_CHARS = 4_400_000; // ~3.3MB binary — VideoRecorder targets we
 
 export async function GET() {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Ej inloggad." }, { status: 401 });
-    }
-
     const photos = await getAll(
       `SELECT p.id, p.user_id, p.caption, p.image_data, p.created_at,
         (u.first_name || ' ' || u.last_name) AS display_name

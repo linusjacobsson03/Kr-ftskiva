@@ -47,7 +47,7 @@ export async function verifySessionToken(
 }
 
 export function displayNameOf(user: Pick<UserRow, "first_name" | "last_name">): string {
-  return `${user.first_name} ${user.last_name}`.trim();
+  return [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
 }
 
 export function sanitizeUser(user: UserRow) {

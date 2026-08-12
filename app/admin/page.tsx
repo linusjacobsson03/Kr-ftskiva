@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, Clock, Lock, Send, Sparkles, X } from "lucide-react";
+import { Check, ChevronDown, Clock, Copy, Lock, MessageSquare, Send, Sparkles, Trash2, UserPlus, X } from "lucide-react";
 import AdminPasscodeGate from "../components/AdminPasscodeGate";
 import type { ChallengeTemplate, ScheduleEntry, UserOption } from "@/lib/types";
 
@@ -727,8 +727,185 @@ function ScheduleTab() {
   );
 }
 
+function GuestsTab() {
+  const [name, setName] = useState("");
+  const [guests, setGuests] = useState<
+    {
+      id: number;
+      displayName: string;
+      inviteUrl: string | null;
+      rsvpStatus: "yes" | "maybe" | "no" | null;
+    }[]
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/guests", { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Kunde inte hämta gäster.");
+        return;
+      }
+      setGuests(data.guests ?? []);
+      setError(null);
+    } catch {
+      setError("Kunde inte nå servern.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function addGuest(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/guests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Kunde inte skapa gästen.");
+        return;
+      }
+      setName("");
+      await load();
+    } catch {
+      setError("Kunde inte nå servern.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeGuest(id: number) {
+    if (!confirm("Ta bort gästen och deras inbjudningslänk?")) return;
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/guests/${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Kunde inte ta bort.");
+        return;
+      }
+      await load();
+    } catch {
+      setError("Kunde inte nå servern.");
+    }
+  }
+
+  function smsHref(guest: { displayName: string; inviteUrl: string | null }) {
+    if (!guest.inviteUrl) return "#";
+    const body = `Hej ${guest.displayName}! 🦞 Du är inbjuden till kräftskivan på Brattön. Öppna din personliga inbjudan här: ${guest.inviteUrl}`;
+    return `sms:?&body=${encodeURIComponent(body)}`;
+  }
+
+  async function copyLink(guest: { id: number; inviteUrl: string | null }) {
+    if (!guest.inviteUrl) return;
+    try {
+      await navigator.clipboard.writeText(guest.inviteUrl);
+      setCopiedId(guest.id);
+      setTimeout(() => setCopiedId((cur) => (cur === guest.id ? null : cur)), 1600);
+    } catch {
+      setError("Kunde inte kopiera — markera länken manuellt.");
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="card space-y-3 p-5">
+        <div>
+          <h2 className="text-sm font-semibold text-cream">Lägg till gäst</h2>
+          <p className="mt-1 text-xs leading-relaxed text-muted">
+            Skriv namnet och skapa ett konto med unik länk. Dela via SMS — gästen
+            öppnar länken och är inloggad direkt, utan att skapa konto själv.
+          </p>
+        </div>
+        <form onSubmit={addGuest} className="flex gap-2">
+          <input
+            className="input-field flex-1"
+            placeholder="Förnamn Efternamn"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={80}
+            required
+          />
+          <button type="submit" disabled={busy || !name.trim()} className="btn-primary shrink-0">
+            <UserPlus size={16} strokeWidth={2} />
+            {busy ? "…" : "Skapa"}
+          </button>
+        </form>
+        {error && (
+          <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <p className="section-label">
+          {loading ? "Laddar…" : `${guests.length} inbjudna`}
+        </p>
+        {!loading && guests.length === 0 && (
+          <p className="text-sm text-muted">Inga gäster ännu — lägg till den första ovan.</p>
+        )}
+        <ul className="space-y-2">
+          {guests.map((g) => (
+            <li
+              key={g.id}
+              className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0">
+                <p className="truncate font-medium text-cream">{g.displayName}</p>
+                {g.inviteUrl && (
+                  <p className="mt-0.5 truncate text-xs text-muted">{g.inviteUrl}</p>
+                )}
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                <a
+                  href={smsHref(g)}
+                  className="btn-secondary !px-3 !py-2 text-xs"
+                  aria-disabled={!g.inviteUrl}
+                >
+                  <MessageSquare size={14} strokeWidth={1.75} />
+                  SMS
+                </a>
+                <button
+                  type="button"
+                  onClick={() => copyLink(g)}
+                  className="btn-secondary !px-3 !py-2 text-xs"
+                  disabled={!g.inviteUrl}
+                >
+                  <Copy size={14} strokeWidth={1.75} />
+                  {copiedId === g.id ? "Kopierad" : "Kopiera"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeGuest(g.id)}
+                  className="rounded-full p-2 text-muted transition hover:bg-danger/10 hover:text-danger"
+                  aria-label={`Ta bort ${g.displayName}`}
+                >
+                  <Trash2 size={15} strokeWidth={1.75} />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 function AdminContent() {
-  const [tab, setTab] = useState<"pending" | "approved" | "schedule">("pending");
+  const [tab, setTab] = useState<"guests" | "pending" | "approved" | "schedule">("guests");
 
   async function lock() {
     await fetch("/api/admin/logout", { method: "POST" });
@@ -741,7 +918,7 @@ function AdminContent() {
         <div>
           <h1 className="font-display text-2xl font-medium text-cream">Admin</h1>
           <p className="mt-0.5 text-sm text-muted">
-            Godkänn, skapa, schemalägg och skicka utmaningar
+            Bjud in gäster, godkänn och skicka utmaningar
           </p>
         </div>
         <button onClick={lock} className="btn-ghost shrink-0">
@@ -750,9 +927,10 @@ function AdminContent() {
         </button>
       </div>
 
-      <div className="card flex p-1">
+      <div className="card flex flex-wrap p-1">
         {(
           [
+            { key: "guests", label: "Gäster" },
             { key: "pending", label: "Godkänn" },
             { key: "approved", label: "Utmaningar" },
             { key: "schedule", label: "Schema" },
@@ -760,7 +938,7 @@ function AdminContent() {
         ).map((t) => (
           <button
             key={t.key}
-            className={`flex-1 rounded-xl py-2 text-sm font-medium transition ${
+            className={`min-w-[4.5rem] flex-1 rounded-xl py-2 text-sm font-medium transition ${
               tab === t.key ? "bg-accent text-ink" : "text-muted"
             }`}
             onClick={() => setTab(t.key)}
@@ -770,6 +948,7 @@ function AdminContent() {
         ))}
       </div>
 
+      {tab === "guests" && <GuestsTab />}
       {tab === "pending" && <PendingTab />}
       {tab === "approved" && <ApprovedTab />}
       {tab === "schedule" && <ScheduleTab />}

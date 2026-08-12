@@ -1,42 +1,49 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { Check, PartyPopper, X } from "lucide-react";
+import { Camera, ChevronRight, MessageSquare, Sparkles, Trophy, UtensilsCrossed } from "lucide-react";
+import PushOptIn from "./components/PushOptIn";
+import Countdown from "./components/Countdown";
 import { useAuth } from "./providers";
+import type { PendingAssignment } from "@/lib/types";
 
-/** Edit these to match your own party. */
-const EVENT = {
-  title: "Kräftskiva",
-  dateLabel: "Lördag 19 september, 16:00",
-  venue: "Lilla Brattön, båthuset",
-  invited: 45,
-  // Starting draft — swap for your own words whenever you're ready.
-  welcomeHeading: "Välkommen till kräftskiva på Brattön!",
-  welcomeText:
-    "Vi samlas för klassisk skaldjursfest med kräftor, skratt och lyktljus i sensommarkvällen. Kom i sommarhumör — vi står för kräftor, snaps och stämning. Under kvällen väntar också roliga utmaningar direkt i appen: lös dem inom tidsgränsen, ladda upp bildbevis och klättra på topplistan. Glöm inte kameran — alla minnen samlas i det gemensamma fotoflödet efteråt!",
-};
-
-export default function WelcomePage() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-  const [attending, setAttending] = useState<number | null>(null);
+function HomeContent() {
+  const { user, loading, refresh } = useAuth();
+  const [pending, setPending] = useState<PendingAssignment[]>([]);
+  const [loadingChallenges, setLoadingChallenges] = useState(true);
 
   useEffect(() => {
-    if (!loading && user) {
-      router.replace("/hem");
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch("/api/challenges/active", { cache: "no-store" });
+        const data = await res.json();
+        if (!cancelled) setPending(data.pending ?? []);
+      } finally {
+        if (!cancelled) setLoadingChallenges(false);
+      }
     }
-  }, [loading, user, router]);
-
-  useEffect(() => {
-    fetch("/api/invite-stats", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => setAttending(typeof d.attending === "number" ? d.attending : null))
-      .catch(() => setAttending(null));
+    load();
+    const id = setInterval(load, 8000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
   }, []);
 
-  if (loading || user) {
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const links = [
+    { href: "/challenges", icon: UtensilsCrossed, label: "Utmaningar", desc: "Vinn poäng" },
+    { href: "/photos", icon: Camera, label: "Foton", desc: "Dagens minnen" },
+    { href: "/leaderboard", icon: Trophy, label: "Topplista", desc: "Vem leder?" },
+  ];
+
+  if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center py-24">
         <div className="h-8 w-8 animate-pulse rounded-full bg-accent/40" />
@@ -45,90 +52,95 @@ export default function WelcomePage() {
   }
 
   return (
-    <div className="relative flex min-h-dvh flex-col overflow-hidden bg-white">
-      {/* Layer A: a mirrored, heavily blurred copy of the same photo — the
-          base layer that shows through once the sharp layer above fades
-          away. A real `blur` filter on the pixels themselves, not a
-          backdrop-blur panel sitting on top of the sharp image (that only
-          hazes whatever's behind a translucent surface — the sharp detail
-          underneath was still fully there, which read as "barely blurred"). */}
-      <Image
-        src="/party-hero.jpg"
-        alt=""
-        aria-hidden
-        fill
-        priority
-        sizes="100vw"
-        className="-scale-y-100 object-cover blur-3xl"
-      />
-      {/* Layer B: the real, sharp photo on top — masked so it fades to fully
-          transparent before the title, so the title and everything below it
-          sit on the fully blurred mirror layer, not on a half-sharp/half-
-          blurred blend. */}
-      <Image
-        src="/party-hero.jpg"
-        alt="Förra årets kräftskiva på Brattön"
-        fill
-        priority
-        sizes="100vw"
-        className="object-cover"
-        style={{ maskImage: "linear-gradient(to bottom, black 22%, transparent 48%)" }}
-      />
-      {/* Final fade to white — a short, tight band instead of a long
-          gradual darkening: the photo stays fully visible (just blurred)
-          right up until this point, then dissolves to solid white quickly. */}
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent from-44% to-white to-56%" />
-      {/* Small top scrim only, purely so the very top edge (behind the
-          status bar/notch, since there's no header on this page) doesn't
-          look flat-cut. */}
-      <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/25 to-transparent" />
-
-      <div className="relative z-10 mt-auto flex flex-col items-center gap-2.5 px-6 pb-10 pt-28 text-center">
-        {/* Everything from here down sits on solid white, so text switches
-            to dark ink instead of the cream used while still on the photo. */}
-        <h1 className="max-w-xs font-sans text-[2.1rem] font-bold leading-[1.1] tracking-tight text-ink">
-          {EVENT.title}
+    <div className="mx-auto max-w-xl space-y-6 px-4 py-7">
+      <div>
+        <h1 className="font-display text-[1.75rem] font-medium tracking-tight text-cream">
+          {user ? `Hej, ${user.firstName}` : "Kräftskiva"}
         </h1>
-        <p className="text-[0.95rem] text-ink/70">{EVENT.dateLabel}</p>
-        <p className="text-[0.95rem] text-ink/70">{EVENT.venue}</p>
+        <p className="mt-0.5 font-display italic text-muted">
+          Välkommen till kvällens kräftskiva
+        </p>
+      </div>
 
-        <div className="mt-4 flex w-full max-w-xs items-stretch overflow-hidden rounded-full border border-black/10 bg-black/[0.03] p-1.5 shadow-sm">
-          <button
-            onClick={() => router.push("/login")}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-accent py-3.5 text-[0.95rem] font-semibold text-ink transition active:scale-[0.97]"
-          >
-            <Check size={16} strokeWidth={2.5} />
-            Jag kommer
-          </button>
-          <div className="my-2 w-px bg-black/10" />
-          <button
-            onClick={() => router.push("/kan-ej")}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-full py-3.5 text-[0.95rem] font-medium text-ink/70 transition active:scale-[0.97]"
-          >
-            <X size={16} strokeWidth={2.5} className="text-danger" />
-            Kan inte
-          </button>
-        </div>
-
-        {/* Plain text, not a card — reads fine directly on the white
-            surface like the title/date above. */}
-        <div className="mt-3 flex max-w-sm flex-col gap-2">
-          <p className="text-sm font-semibold text-ink">{EVENT.welcomeHeading}</p>
-          <p className="text-sm leading-relaxed text-ink/70">{EVENT.welcomeText}</p>
-        </div>
-
-        {/* Info card below the RSVP pill, same subtle-outline material,
-            mirroring the "Hosted by ..." card in the reference. */}
-        <div className="mt-1 flex w-full max-w-xs flex-col items-center gap-1 rounded-2xl border border-black/10 bg-black/[0.03] px-5 py-4 shadow-sm">
-          <PartyPopper size={18} strokeWidth={1.75} className="text-accent" />
-          <p className="text-sm font-medium text-ink">{EVENT.invited} inbjudna till kvällen</p>
-          {attending !== null && (
-            <p className="text-xs text-ink/55">
-              {attending > 0 ? `${attending} har redan tackat ja` : "Bli en av de första att tacka ja!"}
+      {!user && (
+        <Link
+          href="/inbjudan"
+          className="card flex items-center gap-3 border-accent/20 bg-accent/[0.06] p-4 transition hover:bg-accent/[0.1]"
+        >
+          <MessageSquare size={18} strokeWidth={1.75} className="shrink-0 text-accent-strong" />
+          <div className="min-w-0 flex-1 text-left">
+            <p className="text-sm font-medium text-cream">Har du fått en inbjudan?</p>
+            <p className="text-xs text-muted">
+              Öppna din personliga länk från SMS för att delta med ditt namn
             </p>
-          )}
+          </div>
+          <ChevronRight size={16} strokeWidth={2} className="shrink-0 text-accent-strong" />
+        </Link>
+      )}
+
+      {user && (
+        <>
+          <div className="card flex items-center justify-between px-6 py-5">
+            <div>
+              <p className="section-label">Dina poäng</p>
+              <p className="font-display mt-1 text-5xl font-medium text-accent-strong tabular">
+                {user.points ?? 0}
+              </p>
+            </div>
+            <Trophy size={34} strokeWidth={1.25} className="text-accent/70" />
+          </div>
+          <PushOptIn />
+        </>
+      )}
+
+      {!loadingChallenges && pending.length > 0 && (
+        <div className="space-y-3">
+          <p className="section-label">Aktiv utmaning</p>
+          {pending.map((p) => (
+            <Link
+              key={p.id}
+              href="/challenges"
+              className="card block border-l-2 border-l-accent bg-accent/[0.04] p-4 transition hover:bg-accent/[0.07]"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-display text-lg font-medium text-cream">{p.title}</p>
+                <Countdown deadlineIso={p.deadlineIso} className="text-lg text-accent-strong" />
+              </div>
+              <p className="mt-1 text-sm text-muted">{p.description}</p>
+              <p className="mt-2.5 flex items-center gap-1 text-sm font-medium text-accent-strong">
+                Värd {p.points} poäng — ta bildbevis
+                <ChevronRight size={15} strokeWidth={2} />
+              </p>
+            </Link>
+          ))}
         </div>
+      )}
+
+      <div className="grid grid-cols-3 gap-3">
+        {links.map((l) => {
+          const Icon = l.icon;
+          return (
+            <Link
+              key={l.href}
+              href={l.href}
+              className="card flex flex-col items-center gap-2 py-5 text-center transition hover:bg-white/[0.05] active:scale-[0.98]"
+            >
+              <Icon size={22} strokeWidth={1.5} className="text-accent-strong" />
+              <span className="text-sm font-medium text-cream">{l.label}</span>
+              <span className="text-xs text-muted">{l.desc}</span>
+            </Link>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center justify-center gap-1.5 pt-2 text-xs text-muted">
+        <Sparkles size={12} strokeWidth={1.75} />
+        Skål för kvällen
       </div>
     </div>
   );
+}
+
+export default function Home() {
+  return <HomeContent />;
 }

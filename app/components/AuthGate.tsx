@@ -17,7 +17,7 @@ export default function AuthGate({
 
   useEffect(() => {
     if (!loading && !user) {
-      router.replace("/login");
+      router.replace("/inbjudan");
     }
   }, [loading, user, router]);
 

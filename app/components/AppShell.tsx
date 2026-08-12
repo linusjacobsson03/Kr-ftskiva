@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { Camera, Home, LogOut, Settings, Star, Trophy, UtensilsCrossed } from "lucide-react";
+import { Camera, Home, LogOut, MessageSquare, Settings, Star, Trophy, UtensilsCrossed } from "lucide-react";
 import { useAuth } from "../providers";
 import Avatar from "./Avatar";
 
@@ -11,7 +11,7 @@ import Avatar from "./Avatar";
 // area (see AdminPasscodeGate) that anyone who knows the passcode can open,
 // so the tab is always here rather than conditioned on the logged-in user.
 const TABS = [
-  { href: "/hem", label: "Hem", icon: Home },
+  { href: "/", label: "Hem", icon: Home },
   { href: "/challenges", label: "Utmaningar", icon: UtensilsCrossed },
   { href: "/photos", label: "Foton", icon: Camera },
   { href: "/leaderboard", label: "Topplista", icon: Trophy },
@@ -23,22 +23,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  // The welcome screen ("/") wants to be the full-bleed photo card on its
-  // own, edge to edge including behind the status bar/notch — no app chrome
-  // on top of it at all, not even the logo bar.
-  const isWelcome = pathname === "/";
+  // Full-bleed invite screens — no app chrome.
+  const isInvite = pathname === "/inbjudan" || pathname.startsWith("/i/");
+  const showAppChrome = !isInvite;
 
   return (
     <div className="flex min-h-dvh flex-col">
-      {!isWelcome && (
+      {showAppChrome && (
         <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/[0.06] bg-bg/85 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-md">
-          <Link href={user ? "/hem" : "/"} className="flex items-center gap-2.5">
+          <Link href="/" className="flex items-center gap-2.5">
             <Image src="/icons/icon-192.png" alt="" width={28} height={28} className="rounded-lg" />
             <span className="font-display text-lg font-medium tracking-tight text-cream">
               Kräftskiva
             </span>
           </Link>
-          {user && (
+          {user ? (
             <div className="flex items-center gap-2.5">
               <span className="chip">
                 <Star size={13} strokeWidth={2.25} className="fill-accent-strong text-accent-strong" />
@@ -48,7 +47,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <button
                 onClick={async () => {
                   await logout();
-                  router.push("/login");
+                  router.push("/");
                 }}
                 aria-label="Logga ut"
                 title="Logga ut"
@@ -57,16 +56,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <LogOut size={17} strokeWidth={1.75} />
               </button>
             </div>
+          ) : (
+            <Link href="/inbjudan" className="btn-ghost text-xs">
+              <MessageSquare size={14} strokeWidth={1.75} />
+              Inbjudan
+            </Link>
           )}
         </header>
       )}
 
-      {/* pb-24 only when the bottom nav is actually showing (logged-in users)
-          — otherwise it leaves a dead gap of empty space below the content
-          on public pages like the welcome screen. */}
-      <main className={`flex-1 ${user ? "pb-24" : ""}`}>{children}</main>
+      <main className={`flex-1 ${showAppChrome ? "pb-24" : ""}`}>{children}</main>
 
-      {user && (
+      {showAppChrome && (
         <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-white/[0.06] bg-bg/90 backdrop-blur-md">
           <div className="mx-auto flex max-w-xl items-stretch justify-around">
             {TABS.map((tab) => {

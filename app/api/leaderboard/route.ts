@@ -1,15 +1,9 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
 import { getAll, expireOverdueAssignments } from "@/lib/db";
 import { apiError } from "@/lib/apiError";
 
 export async function GET() {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Ej inloggad." }, { status: 401 });
-    }
-
     await expireOverdueAssignments();
 
     const leaderboard = await getAll(
