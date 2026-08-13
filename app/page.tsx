@@ -43,12 +43,9 @@ function HomeContent() {
     { href: "/leaderboard", icon: Trophy, label: "Topplista", desc: "Vem leder?" },
   ];
 
-  // Home is the one page in the app styled light — everything else stays
-  // on the dark theme, so colors are spelled out directly here (text-ink,
-  // border-black/…) rather than reusing .card/.section-label/text-cream,
-  // which all assume a dark page background.
+  // Home matches the rest of the light app theme.
   return (
-    <div className="flex-1 bg-white">
+    <div className="flex-1 bg-bg">
       {loading ? (
         <div className="flex flex-1 items-center justify-center py-24">
           <div className="h-8 w-8 animate-pulse rounded-full bg-accent/40" />
@@ -56,10 +53,10 @@ function HomeContent() {
       ) : (
         <div className="mx-auto max-w-xl space-y-6 px-4 py-7">
           <div>
-            <h1 className="font-display text-[1.75rem] font-medium tracking-tight text-ink">
+            <h1 className="font-display text-[1.75rem] font-medium tracking-tight text-cream">
               {user ? `Hej, ${user.firstName}` : "Kräftskiva"}
             </h1>
-            <p className="mt-0.5 font-display italic text-ink/55">
+            <p className="mt-0.5 font-display italic text-muted">
               Välkommen till kvällens kräftskiva
             </p>
           </div>
@@ -67,59 +64,49 @@ function HomeContent() {
           {!user && (
             <Link
               href="/inbjudan"
-              className="flex items-center gap-3 rounded-2xl border border-accent/25 bg-accent/[0.08] p-4 transition hover:bg-accent/[0.12]"
+              className="card flex items-center gap-3 border-accent/25 bg-accent/[0.08] p-4 transition hover:bg-accent/[0.12]"
             >
-              <MessageSquare size={18} strokeWidth={1.75} className="shrink-0 text-accent" />
+              <MessageSquare size={18} strokeWidth={1.75} className="shrink-0 text-accent-strong" />
               <div className="min-w-0 flex-1 text-left">
-                <p className="text-sm font-medium text-ink">Har du fått en inbjudan?</p>
-                <p className="text-xs text-ink/60">
+                <p className="text-sm font-medium text-cream">Har du fått en inbjudan?</p>
+                <p className="text-xs text-muted">
                   Öppna din personliga länk från SMS för att delta med ditt namn
                 </p>
               </div>
-              <ChevronRight size={16} strokeWidth={2} className="shrink-0 text-accent" />
+              <ChevronRight size={16} strokeWidth={2} className="shrink-0 text-accent-strong" />
             </Link>
           )}
 
           {user && (
             <>
-              <div className="flex items-center justify-between rounded-2xl border border-black/10 bg-black/[0.02] px-6 py-5 shadow-sm">
+              <div className="card flex items-center justify-between px-6 py-5">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/50">
-                    Dina poäng
-                  </p>
-                  <p className="font-display mt-1 text-5xl font-medium text-accent tabular">
+                  <p className="section-label">Dina poäng</p>
+                  <p className="font-display mt-1 text-5xl font-medium text-accent-strong tabular">
                     {user.points ?? 0}
                   </p>
                 </div>
-                <Trophy size={34} strokeWidth={1.25} className="text-accent/50" />
+                <Trophy size={34} strokeWidth={1.25} className="text-accent/70" />
               </div>
-              {/* PushOptIn assumes the app's usual dark background — rather
-                  than reskin a component shared with the (still dark)
-                  Utmaningar page, give it its own dark backdrop here so it
-                  renders exactly as designed. */}
-              <div className="overflow-hidden rounded-2xl bg-[color:var(--color-bg)]">
-                <PushOptIn />
-              </div>
+              <PushOptIn />
             </>
           )}
 
           {!loadingChallenges && pending.length > 0 && (
             <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/50">
-                Aktiv utmaning
-              </p>
+              <p className="section-label">Aktiv utmaning</p>
               {pending.map((p) => (
                 <Link
                   key={p.id}
                   href="/challenges"
-                  className="block rounded-2xl border border-black/10 border-l-2 border-l-accent bg-accent/[0.04] p-4 transition hover:bg-accent/[0.07]"
+                  className="card block border-l-2 border-l-accent p-4 transition hover:bg-accent/[0.06]"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <p className="font-display text-lg font-medium text-ink">{p.title}</p>
-                    <Countdown deadlineIso={p.deadlineIso} className="text-lg text-accent" />
+                    <p className="font-display text-lg font-medium text-cream">{p.title}</p>
+                    <Countdown deadlineIso={p.deadlineIso} className="text-lg text-accent-strong" />
                   </div>
-                  <p className="mt-1 text-sm text-ink/60">{p.description}</p>
-                  <p className="mt-2.5 flex items-center gap-1 text-sm font-medium text-accent">
+                  <p className="mt-1 text-sm text-muted">{p.description}</p>
+                  <p className="mt-2.5 flex items-center gap-1 text-sm font-medium text-accent-strong">
                     Värd {p.points} poäng — ta bildbevis
                     <ChevronRight size={15} strokeWidth={2} />
                   </p>
@@ -135,17 +122,17 @@ function HomeContent() {
                 <Link
                   key={l.href}
                   href={l.href}
-                  className="flex flex-col items-center gap-2 rounded-2xl border border-black/10 bg-black/[0.02] py-5 text-center shadow-sm transition hover:bg-black/[0.04] active:scale-[0.98]"
+                  className="card flex flex-col items-center gap-2 py-5 text-center transition hover:bg-black/[0.02] active:scale-[0.98]"
                 >
-                  <Icon size={22} strokeWidth={1.5} className="text-accent" />
-                  <span className="text-sm font-medium text-ink">{l.label}</span>
-                  <span className="text-xs text-ink/55">{l.desc}</span>
+                  <Icon size={22} strokeWidth={1.5} className="text-accent-strong" />
+                  <span className="text-sm font-medium text-cream">{l.label}</span>
+                  <span className="text-xs text-muted">{l.desc}</span>
                 </Link>
               );
             })}
           </div>
 
-          <div className="flex items-center justify-center gap-1.5 pt-2 text-xs text-ink/50">
+          <div className="flex items-center justify-center gap-1.5 pt-2 text-xs text-muted">
             <Sparkles size={12} strokeWidth={1.75} />
             Skål för kvällen
           </div>

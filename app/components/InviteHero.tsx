@@ -99,7 +99,7 @@ export default function InviteHero({
     : null;
 
   return (
-    <div className="relative">
+    <div className="relative bg-[#0b0d0c] text-[#f3efe6]">
       {/* Photo + fade only — no solid plate under the RSVP */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[62vh] overflow-hidden">
         <Image
@@ -141,7 +141,7 @@ export default function InviteHero({
 
       {greeting && (
         <div className="pointer-events-none absolute inset-x-0 top-[12%] z-10 px-6 text-center">
-          <p className="font-display text-[2rem] font-medium leading-tight tracking-tight text-cream drop-shadow-[0_2px_18px_rgba(0,0,0,0.55)] sm:text-[2.35rem]">
+          <p className="font-display text-[2rem] font-medium leading-tight tracking-tight text-[#f3efe6] drop-shadow-[0_2px_18px_rgba(0,0,0,0.55)] sm:text-[2.35rem]">
             {greeting}
           </p>
           {guestDisplayName && (
@@ -153,11 +153,11 @@ export default function InviteHero({
       <div className="relative z-10">
         {/* Title sits above the fade / RSVP band */}
         <div className="flex min-h-[calc(62vh-3.25rem)] flex-col items-center justify-end gap-1.5 px-6 pb-3 pt-16 text-center">
-          <h1 className="max-w-xs font-sans text-[2.1rem] font-bold leading-[1.1] tracking-tight text-cream">
+          <h1 className="max-w-xs font-sans text-[2.1rem] font-bold leading-[1.1] tracking-tight text-[#f3efe6]">
             {EVENT.title}
           </h1>
-          <p className="text-[0.95rem] text-cream/65">{EVENT.dateLabel}</p>
-          <p className="text-[0.95rem] text-cream/65">{EVENT.venue}</p>
+          <p className="text-[0.95rem] text-[#f3efe6]/65">{EVENT.dateLabel}</p>
+          <p className="text-[0.95rem] text-[#f3efe6]/65">{EVENT.venue}</p>
         </div>
 
         {/* Glass only — no plate behind; photo fade shows through */}
@@ -168,7 +168,7 @@ export default function InviteHero({
               onClick={() => choose("yes")}
               aria-pressed={rsvp === "yes"}
               className={`flex flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1.5 py-2.5 text-[0.72rem] font-semibold leading-tight transition ${
-                rsvp === "yes" ? "bg-white text-ink" : "text-cream"
+                rsvp === "yes" ? "bg-white text-[#1c1712]" : "text-[#f3efe6]"
               }`}
             >
               <Check size={16} strokeWidth={2.5} />
@@ -179,7 +179,7 @@ export default function InviteHero({
               onClick={() => choose("maybe")}
               aria-pressed={rsvp === "maybe"}
               className={`flex flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1.5 py-2.5 text-[0.72rem] font-semibold leading-tight transition ${
-                rsvp === "maybe" ? "bg-white text-ink" : "text-cream"
+                rsvp === "maybe" ? "bg-white text-[#1c1712]" : "text-[#f3efe6]"
               }`}
             >
               <HelpCircle size={16} strokeWidth={2.5} />
@@ -190,7 +190,7 @@ export default function InviteHero({
               onClick={() => choose("no")}
               aria-pressed={rsvp === "no"}
               className={`flex flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1.5 py-2.5 text-[0.72rem] font-semibold leading-tight transition ${
-                rsvp === "no" ? "bg-white text-ink" : "text-cream"
+                rsvp === "no" ? "bg-white text-[#1c1712]" : "text-[#f3efe6]"
               }`}
             >
               <X size={16} strokeWidth={2.5} />
@@ -212,19 +212,19 @@ export default function InviteHero({
 
           <div className="relative mx-auto flex w-full max-w-lg flex-col gap-7 text-left">
             <div className="space-y-3">
-              <p className="text-center text-[0.8rem] font-semibold uppercase tracking-[0.12em] text-accent-strong">
+              <p className="text-center text-[0.8rem] font-semibold uppercase tracking-[0.12em] text-[#e2c07f]">
                 {EVENT.welcomeHeading}
               </p>
-              <p className="text-sm leading-relaxed text-cream/70">{EVENT.welcomeIntro}</p>
+              <p className="text-sm leading-relaxed text-[#f3efe6]/70">{EVENT.welcomeIntro}</p>
             </div>
 
             {EVENT.sections.map((section, i) => (
               <div key={section.heading} className="space-y-2.5">
-                <p className="text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-cream/90">
+                <p className="text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[#f3efe6]/90">
                   {section.heading}
                 </p>
                 {section.body.map((paragraph, j) => (
-                  <p key={`${i}-${j}`} className="text-sm leading-relaxed text-cream/60">
+                  <p key={`${i}-${j}`} className="text-sm leading-relaxed text-[#f3efe6]/60">
                     {paragraph}
                   </p>
                 ))}
@@ -232,17 +232,17 @@ export default function InviteHero({
             ))}
 
             <div className="space-y-3 border-t border-white/[0.08] pt-6 text-center">
-              <p className="text-sm leading-relaxed text-cream/70">{EVENT.welcomeOutro}</p>
-              <p className="text-sm font-semibold tracking-wide text-cream">
+              <p className="text-sm leading-relaxed text-[#f3efe6]/70">{EVENT.welcomeOutro}</p>
+              <p className="text-sm font-semibold tracking-wide text-[#f3efe6]">
                 {EVENT.welcomeSignoff}
               </p>
             </div>
 
             <div className="flex w-full flex-col items-center gap-1 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-5 py-4 text-center">
-              <PartyPopper size={18} strokeWidth={1.75} className="text-accent" />
-              <p className="text-sm font-medium text-cream">{EVENT.invited} inbjudna till kvällen</p>
+              <PartyPopper size={18} strokeWidth={1.75} className="text-[#c9a15a]" />
+              <p className="text-sm font-medium text-[#f3efe6]">{EVENT.invited} inbjudna till kvällen</p>
               {attending !== null && (
-                <p className="text-xs text-cream/45">
+                <p className="text-xs text-[#f3efe6]/45">
                   {attending > 0 ? `${attending} har redan tackat ja` : "Bli en av de första att tacka ja!"}
                 </p>
               )}

@@ -45,7 +45,7 @@ function LeaderboardContent() {
           href="/admin"
           aria-label="Admin"
           title="Admin"
-          className="shrink-0 rounded-full p-2 text-muted transition hover:bg-white/[0.06] hover:text-cream"
+          className="shrink-0 rounded-full p-2 text-muted transition hover:bg-black/[0.05] hover:text-cream"
         >
           <Settings size={19} strokeWidth={1.75} />
         </Link>

@@ -75,8 +75,8 @@ export default function PersonalInvitePage({
   if (error) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center">
-        <p className="font-display text-xl text-cream">Oj, länken funkar inte</p>
-        <p className="max-w-xs text-sm text-muted">{error}</p>
+        <p className="font-display text-xl text-[#f3efe6]">Oj, länken funkar inte</p>
+        <p className="max-w-xs text-sm text-[#9a968c]">{error}</p>
         <Link href="/inbjudan" className="btn-secondary">
           Till inbjudan
         </Link>

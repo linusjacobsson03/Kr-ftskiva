@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Camera,
   Check,
@@ -13,29 +13,36 @@ import {
   Video,
   X,
 } from "lucide-react";
-import Avatar from "../components/Avatar";
 import CameraCapture from "../components/CameraCapture";
 import VideoRecorder from "../components/VideoRecorder";
 import Lightbox from "../components/Lightbox";
+import EvidenceCard from "../components/EvidenceCard";
 import { useAuth } from "../providers";
 import { fileToCompressedDataUrl } from "@/lib/compressImage";
 import { extensionForDataUrl, saveItems } from "@/lib/download";
-import type { PhotoItem } from "@/lib/types";
+import type { PhotoItem, Submission } from "@/lib/types";
 import Link from "next/link";
 
-function timeAgo(iso: string) {
-  const diffMs = Date.now() - new Date(iso + "Z").getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return "nyss";
-  if (mins < 60) return `${mins} min sedan`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} tim sedan`;
-  return `${Math.floor(hours / 24)} d sedan`;
-}
+type AlbumEntry =
+  | {
+      key: string;
+      kind: "photo";
+      id: number;
+      sortAt: number;
+      photo: PhotoItem;
+    }
+  | {
+      key: string;
+      kind: "evidence";
+      id: number;
+      sortAt: number;
+      submission: Submission;
+    };
 
 function PhotosContent() {
   const { user } = useAuth();
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [preview, setPreview] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
@@ -44,22 +51,67 @@ function PhotosContent() {
   const [showCamera, setShowCamera] = useState(false);
   const [showVideoRecorder, setShowVideoRecorder] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/photos", { cache: "no-store" });
-    const data = await res.json();
-    setPhotos(data.photos ?? []);
+    const [photosRes, subsRes] = await Promise.all([
+      fetch("/api/photos", { cache: "no-store" }),
+      fetch("/api/challenges/submissions", { cache: "no-store" }),
+    ]);
+    const photosData = await photosRes.json();
+    const subsData = await subsRes.json();
+    setPhotos(photosData.photos ?? []);
+    setSubmissions(subsData.submissions ?? []);
     setLoading(false);
   }, []);
 
   useEffect(() => {
-    load();
-    const id = setInterval(load, 15000);
+    void load();
+    const id = setInterval(() => void load(), 15000);
     return () => clearInterval(id);
   }, [load]);
+
+  const feed = useMemo<AlbumEntry[]>(() => {
+    const items: AlbumEntry[] = [
+      ...photos.map((photo) => ({
+        key: `photo-${photo.id}`,
+        kind: "photo" as const,
+        id: photo.id,
+        sortAt: new Date(photo.created_at.replace(" ", "T") + "Z").getTime(),
+        photo,
+      })),
+      ...submissions.map((submission) => ({
+        key: `evidence-${submission.id}`,
+        kind: "evidence" as const,
+        id: submission.id,
+        sortAt: new Date(submission.completed_at.replace(" ", "T") + "Z").getTime(),
+        submission,
+      })),
+    ];
+    return items.sort((a, b) => b.sortAt - a.sortAt);
+  }, [photos, submissions]);
+
+  const lightboxItems = useMemo(
+    () =>
+      feed.map((entry) =>
+        entry.kind === "photo"
+          ? {
+              id: entry.id,
+              url: entry.photo.image_data,
+              caption: entry.photo.caption || entry.photo.display_name,
+              displayName: entry.photo.display_name,
+            }
+          : {
+              id: entry.id + 1_000_000,
+              url: entry.submission.photo_data,
+              caption: entry.submission.title,
+              displayName: entry.submission.display_name,
+            }
+      ),
+    [feed]
+  );
 
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -108,32 +160,41 @@ function PhotosContent() {
     setSelected(new Set());
   }
 
-  function toggleSelected(id: number) {
+  function toggleSelected(key: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
 
   function toggleSelectAll() {
-    setSelected((prev) => (prev.size === photos.length ? new Set() : new Set(photos.map((p) => p.id))));
+    setSelected((prev) =>
+      prev.size === feed.length ? new Set() : new Set(feed.map((e) => e.key))
+    );
   }
 
   async function downloadSelected() {
-    const items = photos
-      .filter((p) => selected.has(p.id))
-      .map((p) => ({
-        dataUrl: p.image_data,
-        filename: `kraftskiva-${p.id}.${extensionForDataUrl(p.image_data)}`,
-      }));
+    const items = feed
+      .filter((e) => selected.has(e.key))
+      .map((e) =>
+        e.kind === "photo"
+          ? {
+              dataUrl: e.photo.image_data,
+              filename: `kraftskiva-${e.id}.${extensionForDataUrl(e.photo.image_data)}`,
+            }
+          : {
+              dataUrl: e.submission.photo_data,
+              filename: `kraftskiva-bevis-${e.id}.${extensionForDataUrl(e.submission.photo_data)}`,
+            }
+      );
     await saveItems(items);
   }
 
-  function onThumbnailClick(index: number, id: number) {
+  function onThumbnailClick(index: number, key: string) {
     if (selectMode) {
-      toggleSelected(id);
+      toggleSelected(key);
     } else {
       setLightboxIndex(index);
     }
@@ -161,12 +222,7 @@ function PhotosContent() {
       )}
       {lightboxIndex !== null && (
         <Lightbox
-          items={photos.map((p) => ({
-            id: p.id,
-            url: p.image_data,
-            caption: p.caption,
-            displayName: p.display_name,
-          }))}
+          items={lightboxItems}
           index={lightboxIndex}
           onIndexChange={setLightboxIndex}
           onClose={() => setLightboxIndex(null)}
@@ -175,12 +231,12 @@ function PhotosContent() {
 
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-medium text-cream">Dagens foton</h1>
+          <h1 className="font-display text-2xl font-medium text-cream">Album</h1>
           <p className="mt-0.5 text-sm text-muted">
-            Dela foton och korta klipp från kvällen med hela gänget
+            Dina och andras foton — och alla bildbevis från utmaningarna
           </p>
         </div>
-        {photos.length > 0 && (
+        {feed.length > 0 && (
           <button onClick={toggleSelectMode} className="btn-secondary shrink-0 text-sm">
             {selectMode ? (
               <X size={14} strokeWidth={1.75} />
@@ -195,10 +251,10 @@ function PhotosContent() {
       {selectMode && (
         <div className="card flex items-center justify-between gap-3 p-3">
           <button onClick={toggleSelectAll} className="btn-ghost text-xs">
-            {selected.size === photos.length ? "Avmarkera alla" : "Markera alla"}
+            {selected.size === feed.length ? "Avmarkera alla" : "Markera alla"}
           </button>
           <button
-            onClick={downloadSelected}
+            onClick={() => void downloadSelected()}
             disabled={selected.size === 0}
             className="btn-primary text-sm"
           >
@@ -235,7 +291,7 @@ function PhotosContent() {
                 maxLength={200}
               />
               <div className="flex gap-2">
-                <button onClick={upload} disabled={uploading} className="btn-primary flex-1">
+                <button onClick={() => void upload()} disabled={uploading} className="btn-primary flex-1">
                   {uploading
                     ? "Laddar upp…"
                     : preview.startsWith("data:video/")
@@ -254,7 +310,7 @@ function PhotosContent() {
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-white/[0.14] py-9 text-center">
+            <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-black/15 py-9 text-center">
               <ImagePlus size={26} strokeWidth={1.25} className="text-accent-strong" />
               <span className="text-sm font-medium text-cream">Lägg till ett foto eller en video</span>
               <div className="flex flex-wrap justify-center gap-2">
@@ -295,91 +351,117 @@ function PhotosContent() {
       {!selectMode && !user && (
         <Link
           href="/inbjudan"
-          className="card block p-4 text-center text-sm text-muted transition hover:bg-white/[0.04]"
+          className="card block p-4 text-center text-sm text-muted transition hover:bg-black/[0.03]"
         >
           Öppna din inbjudan för att ladda upp foton
         </Link>
       )}
 
       {loading ? (
-        <p className="text-center text-sm text-muted">Laddar foton…</p>
-      ) : photos.length === 0 ? (
+        <p className="text-center text-sm text-muted">Laddar album…</p>
+      ) : feed.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-10 text-center">
           <Camera size={26} strokeWidth={1.25} className="text-muted" />
           <p className="text-sm text-muted">Inga foton än — bli den första</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {photos.map((photo, index) => {
-            const isVideo = photo.image_data.startsWith("data:video/");
-            const isSelected = selected.has(photo.id);
-            return (
-              <div key={photo.id} className="card overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => onThumbnailClick(index, photo.id)}
-                  className="relative block w-full"
-                >
-                  {isVideo ? (
-                    <video
-                      src={photo.image_data}
-                      muted
-                      playsInline
-                      preload="metadata"
-                      className="aspect-square w-full object-cover"
-                    />
-                  ) : (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={photo.image_data}
-                      alt={photo.caption || "Fest-foto"}
-                      className="aspect-square w-full object-cover"
-                    />
-                  )}
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          {feed.map((entry, index) => {
+            const isSelected = selected.has(entry.key);
 
-                  {isVideo && (
-                    <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                      <span className="rounded-full bg-black/45 p-2.5 backdrop-blur">
-                        <Play size={16} className="fill-white text-white" />
-                      </span>
-                    </span>
-                  )}
-
+            if (entry.kind === "evidence") {
+              return (
+                <div key={entry.key} className="relative">
+                  <EvidenceCard
+                    photoUrl={entry.submission.photo_data}
+                    title={entry.submission.title}
+                    points={entry.submission.points_awarded}
+                    onClick={() => onThumbnailClick(index, entry.key)}
+                  />
                   {selectMode && (
-                    <span
-                      className={`absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full border backdrop-blur ${
+                    <button
+                      type="button"
+                      onClick={() => toggleSelected(entry.key)}
+                      className={`absolute left-2.5 top-2.5 z-10 flex h-6 w-6 items-center justify-center rounded-full border backdrop-blur ${
                         isSelected
                           ? "border-accent bg-accent text-ink"
                           : "border-white/60 bg-black/30 text-transparent"
                       }`}
+                      aria-label="Markera"
                     >
                       <Check size={12} strokeWidth={3} />
-                    </span>
+                    </button>
                   )}
-                </button>
-                <div className="space-y-1 p-2.5">
-                  <div className="flex items-center gap-1.5">
-                    <Avatar name={photo.display_name} size={16} />
-                    <p className="truncate text-xs font-medium text-cream">
-                      {photo.display_name}
-                    </p>
-                  </div>
-                  {photo.caption && (
-                    <p className="line-clamp-2 text-xs text-muted">{photo.caption}</p>
-                  )}
-                  <div className="flex items-center justify-between pt-0.5">
-                    <p className="text-[10px] text-muted/70">{timeAgo(photo.created_at)}</p>
-                    {!selectMode && (user?.id === photo.user_id || user?.isAdmin) && (
-                      <button
-                        onClick={() => remove(photo.id)}
-                        aria-label="Ta bort foto"
-                        className="text-muted/70 transition hover:text-danger"
+                  <p className="mt-1.5 px-1 text-xs text-muted">
+                    {entry.submission.display_name}
+                  </p>
+                </div>
+              );
+            }
+
+            const photo = entry.photo;
+            const isVideo = photo.image_data.startsWith("data:video/");
+            return (
+              <div key={entry.key} className="relative">
+                <button
+                  type="button"
+                  onClick={() => onThumbnailClick(index, entry.key)}
+                  className="block w-full text-left"
+                >
+                  <div className="relative overflow-hidden rounded-2xl bg-black/[0.04]">
+                    {isVideo ? (
+                      <video
+                        src={photo.image_data}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        className="aspect-[4/5] w-full object-cover"
+                      />
+                    ) : (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={photo.image_data}
+                        alt={photo.caption || "Fest-foto"}
+                        className="aspect-[4/5] w-full object-cover"
+                      />
+                    )}
+                    {isVideo && (
+                      <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <span className="rounded-full bg-black/45 p-2.5 backdrop-blur">
+                          <Play size={16} className="fill-white text-white" />
+                        </span>
+                      </span>
+                    )}
+                    {selectMode && (
+                      <span
+                        className={`absolute left-2.5 top-2.5 flex h-6 w-6 items-center justify-center rounded-full border backdrop-blur ${
+                          isSelected
+                            ? "border-accent bg-accent text-ink"
+                            : "border-white/60 bg-black/30 text-transparent"
+                        }`}
                       >
-                        <Trash2 size={12} strokeWidth={1.75} />
-                      </button>
+                        <Check size={12} strokeWidth={3} />
+                      </span>
                     )}
                   </div>
-                </div>
+                  <div className="mt-2 rounded-2xl border border-black/[0.06] bg-white px-4 py-3 shadow-[0_1px_2px_rgba(28,23,18,0.04)]">
+                    <p className="text-sm font-medium leading-snug text-ink">
+                      {photo.caption?.trim() || photo.display_name}
+                    </p>
+                    {photo.caption?.trim() && (
+                      <p className="mt-0.5 text-xs text-muted">{photo.display_name}</p>
+                    )}
+                  </div>
+                </button>
+                {!selectMode && (user?.id === photo.user_id || user?.isAdmin) && (
+                  <button
+                    onClick={() => void remove(photo.id)}
+                    aria-label="Ta bort foto"
+                    className="mt-1.5 px-1 text-xs text-muted transition hover:text-danger"
+                  >
+                    <Trash2 size={12} strokeWidth={1.75} className="inline" /> Ta bort
+                  </button>
+                )}
               </div>
             );
           })}

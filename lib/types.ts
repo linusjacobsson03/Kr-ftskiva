@@ -24,6 +24,7 @@ export interface HistoryAssignment {
 
 export interface Submission {
   id: number;
+  user_id: number;
   photo_data: string;
   completed_at: string;
   points_awarded: number;

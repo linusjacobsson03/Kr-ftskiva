@@ -190,7 +190,7 @@ function RecipientDropdown({
           className="shrink-0 text-muted transition group-open:rotate-180"
         />
       </summary>
-      <div className="absolute right-0 top-full z-10 mt-1 w-56 space-y-0.5 rounded-xl border border-white/10 bg-[color:var(--color-surface)] p-1.5 shadow-lg">
+      <div className="absolute right-0 top-full z-10 mt-1 w-56 space-y-0.5 rounded-xl border border-black/10 bg-white p-1.5 shadow-lg">
         <button
           type="button"
           onClick={() => pickSingle("random")}
@@ -209,7 +209,7 @@ function RecipientDropdown({
         >
           Alla
         </button>
-        <div className="my-1 border-t border-white/10" />
+        <div className="my-1 border-t border-black/10" />
         <div className="max-h-40 overflow-y-auto">
           {users.length === 0 ? (
             <p className="px-2 py-1.5 text-sm text-muted">Inga deltagare än.</p>
@@ -356,7 +356,7 @@ function ChallengeRow({
         </p>
       </div>
 
-      <div className="border-t border-white/10 pt-3">
+      <div className="border-t border-black/10 pt-3">
         <RecipientDropdown
           users={users}
           value={recipients}
@@ -371,7 +371,7 @@ function ChallengeRow({
       </button>
       {sendMsg && <p className="text-sm text-accent-strong">{sendMsg}</p>}
 
-      <div className="space-y-2 border-t border-white/10 pt-3">
+      <div className="space-y-2 border-t border-black/10 pt-3">
         <p className="section-label">Eller schemalägg</p>
         <input
           type="datetime-local"
@@ -987,7 +987,7 @@ function GuestsTab() {
                           ? "bg-accent/15 text-accent-strong"
                           : g.rsvpStatus === "no"
                             ? "bg-danger/15 text-danger"
-                            : "bg-white/[0.06] text-muted"
+                            : "bg-black/[0.05] text-muted"
                     }`}
                   >
                     {g.rsvpStatus === "yes"
@@ -1002,7 +1002,7 @@ function GuestsTab() {
                     className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide ${
                       g.pushEnabled
                         ? "bg-success/15 text-success"
-                        : "bg-white/[0.06] text-muted"
+                        : "bg-black/[0.05] text-muted"
                     }`}
                   >
                     {g.pushEnabled ? "Notiser på" : "Notiser av"}

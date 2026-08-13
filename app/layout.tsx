@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   applicationName: "Kräftskiva",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "Kräftskiva",
   },
   icons: {
@@ -45,7 +45,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#0b0d0c",
+  // Match page bg so iOS Safari’s URL/search bar blends instead of a hard edge.
+  themeColor: "#ffffff",
   viewportFit: "cover",
 };
 

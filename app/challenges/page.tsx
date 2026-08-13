@@ -2,24 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, CheckCircle2, Clock, ImageOff, Images } from "lucide-react";
-import Avatar from "../components/Avatar";
 import CameraCapture from "../components/CameraCapture";
 import Countdown from "../components/Countdown";
+import EvidenceCard from "../components/EvidenceCard";
 import PushOptIn from "../components/PushOptIn";
 import { useAuth } from "../providers";
 import { fileToCompressedDataUrl } from "@/lib/compressImage";
 import type { HistoryAssignment, PendingAssignment, Submission } from "@/lib/types";
 import Link from "next/link";
-
-function timeAgo(iso: string) {
-  const diffMs = Date.now() - new Date(iso + "Z").getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return "nyss";
-  if (mins < 60) return `${mins} min sedan`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} tim sedan`;
-  return `${Math.floor(hours / 24)} d sedan`;
-}
 
 function ChallengeCard({
   assignment,
@@ -88,7 +78,7 @@ function ChallengeCard({
         <CameraCapture
           onCapture={(dataUrl) => {
             setShowCamera(false);
-            submitPhoto(dataUrl);
+            void submitPhoto(dataUrl);
           }}
           onClose={() => setShowCamera(false)}
         />
@@ -140,7 +130,7 @@ function ChallengesContent() {
   const { refresh, user } = useAuth();
   const [pending, setPending] = useState<PendingAssignment[]>([]);
   const [history, setHistory] = useState<HistoryAssignment[]>([]);
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [mine, setMine] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadActive = useCallback(async () => {
@@ -151,28 +141,30 @@ function ChallengesContent() {
     setLoading(false);
   }, []);
 
-  const loadSubmissions = useCallback(async () => {
-    const res = await fetch("/api/challenges/submissions", { cache: "no-store" });
+  const loadMine = useCallback(async () => {
+    const res = await fetch("/api/challenges/submissions?mine=1", { cache: "no-store" });
     const data = await res.json();
-    setSubmissions(data.submissions ?? []);
+    setMine(data.submissions ?? []);
   }, []);
 
   useEffect(() => {
-    loadActive();
-    loadSubmissions();
-    const id = setInterval(loadActive, 5000);
-    const id2 = setInterval(loadSubmissions, 20000);
+    void loadActive();
+    void loadMine();
+    const id = setInterval(() => void loadActive(), 5000);
+    const id2 = setInterval(() => void loadMine(), 15000);
     return () => {
       clearInterval(id);
       clearInterval(id2);
     };
-  }, [loadActive, loadSubmissions]);
+  }, [loadActive, loadMine]);
 
   const handleDone = useCallback(() => {
-    loadActive();
-    loadSubmissions();
-    refresh();
-  }, [loadActive, loadSubmissions, refresh]);
+    void loadActive();
+    void loadMine();
+    void refresh();
+  }, [loadActive, loadMine, refresh]);
+
+  const missed = history.filter((h) => h.status === "expired");
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-7">
@@ -196,7 +188,7 @@ function ChallengesContent() {
               "Håll utkik — en notis dyker upp när nästa utmaning skickas ut"
             ) : (
               <>
-                Du kan titta på bildbevis här — för egna utmaningar behövs din personliga länk.{" "}
+                Dina bildbevis syns här när du är inloggad.{" "}
                 <Link href="/inbjudan" className="text-accent-strong underline-offset-2 hover:underline">
                   Till inbjudan
                 </Link>
@@ -212,61 +204,46 @@ function ChallengesContent() {
         ))}
       </div>
 
-      {history.length > 0 && (
+      <div>
+        <p className="section-label mb-3">Dina bildbevis</p>
+        {mine.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-8 text-center">
+            <ImageOff size={22} strokeWidth={1.25} className="text-muted" />
+            <p className="text-sm text-muted">
+              {user
+                ? "Inga bildbevis ännu — klarar du en utmaning dyker den upp här"
+                : "Logga in via din inbjudan för att se dina bevis"}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            {mine.map((s) => (
+              <EvidenceCard
+                key={s.id}
+                photoUrl={s.photo_data}
+                title={s.title}
+                points={s.points_awarded}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {missed.length > 0 && (
         <div>
-          <p className="section-label mb-2">Din historik</p>
+          <p className="section-label mb-2">Missade</p>
           <div className="flex flex-wrap gap-2">
-            {history.map((h) => (
+            {missed.map((h) => (
               <span
                 key={h.id}
-                className={
-                  h.status === "completed"
-                    ? "chip"
-                    : "inline-flex items-center gap-1 rounded-full border border-white/[0.08] px-2.5 py-1 text-xs text-muted"
-                }
+                className="inline-flex items-center gap-1 rounded-full border border-black/10 px-2.5 py-1 text-xs text-muted"
               >
-                {h.emoji} {h.title}{" "}
-                {h.status === "completed" ? `+${h.points_awarded}p` : "missad"}
+                {h.emoji} {h.title}
               </span>
             ))}
           </div>
         </div>
       )}
-
-      <div>
-        <p className="section-label mb-2">Bildbevis från festen</p>
-        {submissions.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-8 text-center">
-            <ImageOff size={22} strokeWidth={1.25} className="text-muted" />
-            <p className="text-sm text-muted">Inga bildbevis inlämnade än</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {submissions.map((s) => (
-              <div key={s.id} className="card overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={s.photo_data}
-                  alt={s.title}
-                  className="aspect-square w-full object-cover"
-                />
-                <div className="space-y-1 p-2.5">
-                  <div className="flex items-center gap-1.5">
-                    <Avatar name={s.display_name} size={16} />
-                    <p className="truncate text-xs font-medium text-cream">
-                      {s.display_name}
-                    </p>
-                  </div>
-                  <p className="truncate text-xs text-accent-strong">
-                    {s.emoji} {s.title} · +{s.points_awarded}p
-                  </p>
-                  <p className="text-[10px] text-muted/70">{timeAgo(s.completed_at)}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

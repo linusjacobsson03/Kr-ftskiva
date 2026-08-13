@@ -1,6 +1,23 @@
 @import "tailwindcss";
 
 @theme inline {
+  /* App default: light / white */
+  --color-bg: #ffffff;
+  --color-surface: #f4f2ee;
+  --color-accent: #c9a15a;
+  --color-accent-strong: #a87f3a;
+  --color-ink: #1c1712;
+  --color-cream: #1c1712;
+  --color-muted: #6f6b63;
+  --color-wine: #7c2d3a;
+  --color-danger: #d1454a;
+  --color-success: #2f9a6f;
+  --font-display: var(--font-fraunces), "Iowan Old Style", serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+/* Invite landing (/inbjudan, /i/*) keeps the original dark look. */
+.theme-invite {
   --color-bg: #0b0d0c;
   --color-surface: #14100d;
   --color-accent: #c9a15a;
@@ -11,56 +28,63 @@
   --color-wine: #7c2d3a;
   --color-danger: #e2666a;
   --color-success: #6fbf9a;
-  --font-display: var(--font-fraunces), "Iowan Old Style", serif;
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  color: var(--color-cream);
+  background-color: var(--color-bg);
 }
 
-html,
-body {
+html {
   height: 100%;
+  background-color: var(--color-bg);
 }
 
-body {
+/* When invite is open, match the old dark chrome (no white flash / light overlays). */
+html:has(.theme-invite) {
+  background-color: #0b0d0c;
+}
+html:has(.theme-invite) body {
   background-color: #0b0d0c;
   color: #f3efe6;
+}
+html:has(.theme-invite) body::before,
+html:has(.theme-invite) body::after {
+  display: none;
+}
+
+body {
+  min-height: 100%;
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
+  background-color: var(--color-bg);
+  color: var(--color-cream);
   font-family: var(--font-sans);
   -webkit-tap-highlight-color: transparent;
   position: relative;
   overflow-x: hidden;
 }
 
-/* A restrained sense of depth: two soft, low-opacity glows — brass up top,
-   a whisper of wine at the base — instead of a loud rainbow gradient. */
+/* Soft warm atmosphere on white — not flat. */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -2;
   background:
-    radial-gradient(ellipse 70% 45% at 50% -8%, rgba(201, 161, 90, 0.1), transparent 60%),
-    radial-gradient(ellipse 55% 40% at 90% 105%, rgba(124, 45, 58, 0.14), transparent 60%);
+    radial-gradient(ellipse 70% 45% at 50% -8%, rgba(201, 161, 90, 0.12), transparent 60%),
+    radial-gradient(ellipse 55% 40% at 90% 105%, rgba(124, 45, 58, 0.06), transparent 60%);
   pointer-events: none;
 }
 
-/* Fine film grain for tactility — the difference between "flat AI gradient"
-   and something that feels considered. */
 body::after {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
-  opacity: 0.05;
+  opacity: 0.035;
   pointer-events: none;
-  mix-blend-mode: overlay;
+  mix-blend-mode: multiply;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-/* @layer base (not left bare) so a utility like font-sans/font-bold on a
-   specific <h1> can still override this default — see the @layer components
-   comment below for why unlayered CSS always wins over utilities otherwise
-   regardless of class order, which is what silently forced every h1/h2/h3
-   into the serif display font even where a page explicitly asked for the
-   sans-serif one. */
 @layer base {
   h1,
   h2,
@@ -71,21 +95,18 @@ body::after {
   }
 }
 
-/* ---------- Building blocks ----------
-   Wrapped in @layer components: Tailwind v4's @import above creates the
-   cascade layers theme/base/components/utilities, and any *unlayered* CSS
-   (which this file's rules would otherwise be, since they're plain classes
-   written after the import) automatically outranks all of them regardless
-   of source order. Without this @layer, a utility class combined with one
-   of these on the same element — e.g. `className="input-field w-16"` to
-   make one particular input narrow — silently loses to this file's
-   `width: 100%`/etc. every time, which is exactly what happened to the
-   emoji field on the admin "Ny utmaning" form. */
 @layer components {
   .card {
+    background: #ffffff;
+    border: 1px solid rgba(28, 23, 18, 0.1);
+    border-radius: 1.1rem;
+    box-shadow: 0 1px 2px rgba(28, 23, 18, 0.04);
+  }
+
+  .theme-invite .card {
     background: rgba(255, 255, 255, 0.035);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 1.1rem;
+    box-shadow: none;
   }
 
   .section-label {
@@ -113,6 +134,10 @@ body::after {
   }
   .btn-primary:hover {
     background: var(--color-accent-strong);
+    color: #fff;
+  }
+  .theme-invite .btn-primary:hover {
+    color: var(--color-ink);
   }
   .btn-primary:active {
     transform: scale(0.98);
@@ -129,7 +154,7 @@ body::after {
     justify-content: center;
     gap: 0.5rem;
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(28, 23, 18, 0.14);
     color: var(--color-cream);
     font-weight: 500;
     font-size: 0.9rem;
@@ -140,6 +165,13 @@ body::after {
       background 0.15s ease;
   }
   .btn-secondary:hover {
+    border-color: rgba(28, 23, 18, 0.28);
+    background: rgba(28, 23, 18, 0.04);
+  }
+  .theme-invite .btn-secondary {
+    border: 1px solid rgba(255, 255, 255, 0.16);
+  }
+  .theme-invite .btn-secondary:hover {
     border-color: rgba(255, 255, 255, 0.3);
     background: rgba(255, 255, 255, 0.04);
   }
@@ -163,8 +195,8 @@ body::after {
   .input-field {
     width: 100%;
     border-radius: 0.65rem;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: #fff;
+    border: 1px solid rgba(28, 23, 18, 0.14);
     padding: 0.68rem 0.9rem;
     color: var(--color-cream);
     font-size: 0.95rem;
@@ -172,9 +204,20 @@ body::after {
     transition: border-color 0.15s ease, background 0.15s ease;
   }
   .input-field::placeholder {
-    color: rgba(243, 239, 230, 0.32);
+    color: rgba(28, 23, 18, 0.38);
   }
   .input-field:focus {
+    border-color: var(--color-accent);
+    background: #fff;
+  }
+  .theme-invite .input-field {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+  .theme-invite .input-field::placeholder {
+    color: rgba(243, 239, 230, 0.32);
+  }
+  .theme-invite .input-field:focus {
     border-color: var(--color-accent);
     background: rgba(255, 255, 255, 0.05);
   }
@@ -187,9 +230,9 @@ body::after {
     padding: 0.3rem 0.7rem;
     font-size: 0.75rem;
     font-weight: 600;
-    background: rgba(201, 161, 90, 0.12);
+    background: rgba(201, 161, 90, 0.14);
     color: var(--color-accent-strong);
-    border: 1px solid rgba(201, 161, 90, 0.25);
+    border: 1px solid rgba(201, 161, 90, 0.3);
   }
 }
 
@@ -206,6 +249,10 @@ body::after {
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(28, 23, 18, 0.18);
   border-radius: 999px;
+}
+.theme-invite::-webkit-scrollbar-thumb,
+.theme-invite ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
 }
