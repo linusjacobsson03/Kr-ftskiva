@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Settings, Trophy } from "lucide-react";
-import AuthGate from "../components/AuthGate";
 import Avatar from "../components/Avatar";
 import { useAuth } from "../providers";
 import type { LeaderboardEntry } from "@/lib/types";
@@ -92,9 +91,5 @@ function LeaderboardContent() {
 }
 
 export default function LeaderboardPage() {
-  return (
-    <AuthGate>
-      <LeaderboardContent />
-    </AuthGate>
-  );
+  return <LeaderboardContent />;
 }

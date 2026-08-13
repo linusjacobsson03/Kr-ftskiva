@@ -11,7 +11,7 @@ export default function CantComePage() {
         Tråkigt att du inte kan komma. Vi kommer sakna dig — hoppas vi ses snart!
       </p>
       <Link
-        href="/"
+        href="/inbjudan"
         className="btn-ghost mt-6 inline-flex items-center gap-1.5"
       >
         <ArrowLeft size={14} strokeWidth={1.75} />

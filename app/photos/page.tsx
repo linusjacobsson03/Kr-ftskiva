@@ -13,7 +13,6 @@ import {
   Video,
   X,
 } from "lucide-react";
-import AuthGate from "../components/AuthGate";
 import Avatar from "../components/Avatar";
 import CameraCapture from "../components/CameraCapture";
 import VideoRecorder from "../components/VideoRecorder";
@@ -22,6 +21,7 @@ import { useAuth } from "../providers";
 import { fileToCompressedDataUrl } from "@/lib/compressImage";
 import { extensionForDataUrl, saveItems } from "@/lib/download";
 import type { PhotoItem } from "@/lib/types";
+import Link from "next/link";
 
 function timeAgo(iso: string) {
   const diffMs = Date.now() - new Date(iso + "Z").getTime();
@@ -208,7 +208,7 @@ function PhotosContent() {
         </div>
       )}
 
-      {!selectMode && (
+      {!selectMode && user && (
         <div className="card space-y-3 p-4">
           {preview ? (
             <div className="space-y-3">
@@ -290,6 +290,15 @@ function PhotosContent() {
           )}
           {error && <p className="text-sm text-danger">{error}</p>}
         </div>
+      )}
+
+      {!selectMode && !user && (
+        <Link
+          href="/inbjudan"
+          className="card block p-4 text-center text-sm text-muted transition hover:bg-white/[0.04]"
+        >
+          Öppna din inbjudan för att ladda upp foton
+        </Link>
       )}
 
       {loading ? (
@@ -381,9 +390,5 @@ function PhotosContent() {
 }
 
 export default function PhotosPage() {
-  return (
-    <AuthGate>
-      <PhotosContent />
-    </AuthGate>
-  );
+  return <PhotosContent />;
 }

@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, CheckCircle2, Clock, ImageOff, Images } from "lucide-react";
-import AuthGate from "../components/AuthGate";
 import Avatar from "../components/Avatar";
 import CameraCapture from "../components/CameraCapture";
 import Countdown from "../components/Countdown";
+import PushOptIn from "../components/PushOptIn";
 import { useAuth } from "../providers";
 import { fileToCompressedDataUrl } from "@/lib/compressImage";
 import type { HistoryAssignment, PendingAssignment, Submission } from "@/lib/types";
+import Link from "next/link";
 
 function timeAgo(iso: string) {
   const diffMs = Date.now() - new Date(iso + "Z").getTime();
@@ -136,7 +137,7 @@ function ChallengeCard({
 }
 
 function ChallengesContent() {
-  const { refresh } = useAuth();
+  const { refresh, user } = useAuth();
   const [pending, setPending] = useState<PendingAssignment[]>([]);
   const [history, setHistory] = useState<HistoryAssignment[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -182,12 +183,25 @@ function ChallengesContent() {
         </p>
       </div>
 
+      {user && <PushOptIn />}
+
       {!loading && pending.length === 0 && (
         <div className="card flex flex-col items-center gap-2 p-8 text-center">
           <Clock size={26} strokeWidth={1.25} className="text-muted" />
-          <p className="font-display font-medium text-cream">Ingen aktiv utmaning just nu</p>
+          <p className="font-display font-medium text-cream">
+            {user ? "Ingen aktiv utmaning just nu" : "Öppna din inbjudan för att delta"}
+          </p>
           <p className="text-sm text-muted">
-            Håll utkik — en notis dyker upp när nästa utmaning skickas ut
+            {user ? (
+              "Håll utkik — en notis dyker upp när nästa utmaning skickas ut"
+            ) : (
+              <>
+                Du kan titta på bildbevis här — för egna utmaningar behövs din personliga länk.{" "}
+                <Link href="/inbjudan" className="text-accent-strong underline-offset-2 hover:underline">
+                  Till inbjudan
+                </Link>
+              </>
+            )}
           </p>
         </div>
       )}
@@ -258,9 +272,5 @@ function ChallengesContent() {
 }
 
 export default function ChallengesPage() {
-  return (
-    <AuthGate>
-      <ChallengesContent />
-    </AuthGate>
-  );
+  return <ChallengesContent />;
 }

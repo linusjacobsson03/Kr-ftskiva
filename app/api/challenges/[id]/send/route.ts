@@ -70,7 +70,7 @@ export async function POST(
         ? `${minutes} min`
         : `${challenge.duration_seconds} sek`;
 
-    await Promise.all(
+    const pushResults = await Promise.all(
       recipients.map((u) =>
         sendPushToUser(u.id, {
           title: `${challenge.emoji} Ny utmaning!`,
@@ -80,8 +80,22 @@ export async function POST(
         })
       )
     );
+    const pushesAttempted = pushResults.reduce((n, r) => n + r.attempted, 0);
+    const pushesDelivered = pushResults.reduce((n, r) => n + r.delivered, 0);
 
-    return NextResponse.json({ ok: true, sentTo: recipients.length });
+    return NextResponse.json({
+      ok: true,
+      sentTo: recipients.length,
+      pushesAttempted,
+      pushesDelivered,
+      pushWarning:
+        pushesAttempted === 0
+          ? "Ingen har aktiverat notiser ännu. Utmaningen skickades till appen, men ingen push gick ut."
+          : pushesDelivered === 0
+            ? pushResults.find((r) => r.error)?.error ||
+              "Push misslyckades (utgångna prenumerationer?). Be gästerna aktivera notiser igen från hemskärmsappen."
+            : null,
+    });
   } catch (err) {
     return apiError(err);
   }

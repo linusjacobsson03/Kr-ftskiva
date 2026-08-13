@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, Clock, Lock, Send, Sparkles, X } from "lucide-react";
+import { Bell, Check, ChevronDown, Clock, Copy, Lock, MessageSquare, PartyPopper, Send, Sparkles, Trash2, UserPlus, X } from "lucide-react";
 import AdminPasscodeGate from "../components/AdminPasscodeGate";
 import type { ChallengeTemplate, ScheduleEntry, UserOption } from "@/lib/types";
 
@@ -283,7 +283,14 @@ function ChallengeRow({
         setSendMsg(data.error || "Kunde inte skicka.");
         return;
       }
-      setSendMsg(`Skickat till ${data.sentTo} person${data.sentTo === 1 ? "" : "er"}`);
+      const base = `Skickat till ${data.sentTo} person${data.sentTo === 1 ? "" : "er"}`;
+      const pushPart =
+        data.pushesAttempted === 0
+          ? " — ingen notis (ingen har aktiverat)"
+          : data.pushesDelivered === 0
+            ? " — push misslyckades"
+            : ` — ${data.pushesDelivered} notis${data.pushesDelivered === 1 ? "" : "er"} skickad`;
+      setSendMsg(data.pushWarning ? `${base}. ${data.pushWarning}` : `${base}${pushPart}`);
       onSent();
     } finally {
       setSending(false);
@@ -550,7 +557,14 @@ function ApprovedTab() {
           await load();
           return;
         }
-        setFormSuccess(`Utmaningen skapades och skickades till ${data.sentTo} person${data.sentTo === 1 ? "" : "er"}.`);
+        const base = `Utmaningen skapades och skickades till ${data.sentTo} person${data.sentTo === 1 ? "" : "er"}`;
+        setFormSuccess(
+          data.pushWarning
+            ? `${base}. ${data.pushWarning}`
+            : data.pushesDelivered > 0
+              ? `${base} (${data.pushesDelivered} notis${data.pushesDelivered === 1 ? "" : "er"}).`
+              : `${base}.`
+        );
       }
 
       setRecipients({ target: "random", selectedUserIds: [] });
@@ -727,8 +741,328 @@ function ScheduleTab() {
   );
 }
 
+function GuestsTab() {
+  const [name, setName] = useState("");
+  const [guests, setGuests] = useState<
+    {
+      id: number;
+      displayName: string;
+      inviteUrl: string | null;
+      rsvpStatus: "yes" | "maybe" | "no" | null;
+      pushEnabled: boolean;
+      pushSubscriptions: number;
+    }[]
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [partyBusy, setPartyBusy] = useState(false);
+  const [partyLive, setPartyLive] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [testPushId, setTestPushId] = useState<number | null>(null);
+  const [testMsg, setTestMsg] = useState<string | null>(null);
+
+  const load = useCallback(async (opts?: { quiet?: boolean }) => {
+    if (!opts?.quiet) setLoading(true);
+    try {
+      const [guestsRes, partyRes] = await Promise.all([
+        fetch("/api/admin/guests", { cache: "no-store" }),
+        fetch("/api/admin/party-mode", { cache: "no-store" }),
+      ]);
+      const guestsData = await guestsRes.json();
+      const partyData = await partyRes.json();
+      if (!guestsRes.ok) {
+        setError(guestsData.error || "Kunde inte hämta gäster.");
+        return;
+      }
+      setGuests(guestsData.guests ?? []);
+      if (partyRes.ok) setPartyLive(!!partyData.partyLive);
+      setError(null);
+    } catch {
+      setError("Kunde inte nå servern.");
+    } finally {
+      if (!opts?.quiet) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+    const id = setInterval(() => void load({ quiet: true }), 8000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  async function togglePartyLive() {
+    setPartyBusy(true);
+    setError(null);
+    const next = !partyLive;
+    try {
+      const res = await fetch("/api/admin/party-mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ partyLive: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Kunde inte uppdatera.");
+        return;
+      }
+      setPartyLive(!!data.partyLive);
+    } catch {
+      setError("Kunde inte nå servern.");
+    } finally {
+      setPartyBusy(false);
+    }
+  }
+
+  async function addGuest(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/guests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Kunde inte skapa gästen.");
+        return;
+      }
+      setName("");
+      await load();
+    } catch {
+      setError("Kunde inte nå servern.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeGuest(id: number) {
+    if (!confirm("Ta bort gästen och deras inbjudningslänk?")) return;
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/guests/${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Kunde inte ta bort.");
+        return;
+      }
+      await load();
+    } catch {
+      setError("Kunde inte nå servern.");
+    }
+  }
+
+  async function testPush(id: number) {
+    setTestPushId(id);
+    setTestMsg(null);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/guests/${id}/test-push`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Kunde inte skicka testnotis.");
+        return;
+      }
+      setTestMsg(`Testnotis skickad till ${guests.find((g) => g.id === id)?.displayName ?? "gästen"}.`);
+      setTimeout(() => setTestMsg(null), 4000);
+    } catch {
+      setError("Kunde inte nå servern.");
+    } finally {
+      setTestPushId(null);
+    }
+  }
+
+  function smsHref(guest: { displayName: string; inviteUrl: string | null }) {
+    if (!guest.inviteUrl) return "#";
+    const body = `Hej ${guest.displayName}! 🦞 Du är inbjuden till kräftskivan på Brattön. Öppna din personliga inbjudan här: ${guest.inviteUrl}`;
+    return `sms:?&body=${encodeURIComponent(body)}`;
+  }
+
+  async function copyLink(guest: { id: number; inviteUrl: string | null }) {
+    if (!guest.inviteUrl) return;
+    try {
+      await navigator.clipboard.writeText(guest.inviteUrl);
+      setCopiedId(guest.id);
+      setTimeout(() => setCopiedId((cur) => (cur === guest.id ? null : cur)), 1600);
+    } catch {
+      setError("Kunde inte kopiera — markera länken manuellt.");
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <div
+        className={`card space-y-3 p-5 ${
+          partyLive ? "border-accent/35 bg-accent/[0.07]" : ""
+        }`}
+      >
+        <div className="flex items-start gap-3">
+          <PartyPopper
+            size={20}
+            strokeWidth={1.75}
+            className={`mt-0.5 shrink-0 ${partyLive ? "text-accent-strong" : "text-muted"}`}
+          />
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold text-cream">
+              {partyLive ? "Kvällen är igång" : "Inför kvällen"}
+            </h2>
+            <p className="mt-1 text-xs leading-relaxed text-muted">
+              {partyLive
+                ? "Gästernas inbjudningslänkar går rakt in i appen — ingen inbjudningssida."
+                : "När det är dags: tryck här så landar gästerna direkt i appen när de öppnar sin länk."}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={togglePartyLive}
+          disabled={partyBusy}
+          className={partyLive ? "btn-secondary w-full" : "btn-primary w-full"}
+        >
+          {partyBusy
+            ? "…"
+            : partyLive
+              ? "Visa inbjudan igen"
+              : "Öppna appen för gästerna"}
+        </button>
+      </div>
+
+      <div className="card space-y-3 p-5">
+        <div>
+          <h2 className="text-sm font-semibold text-cream">Lägg till gäst</h2>
+          <p className="mt-1 text-xs leading-relaxed text-muted">
+            Skriv namnet och skapa ett konto med unik länk. Dela via SMS — gästen
+            öppnar länken och är inloggad direkt, utan att skapa konto själv.
+          </p>
+        </div>
+        <form onSubmit={addGuest} className="flex gap-2">
+          <input
+            className="input-field flex-1"
+            placeholder="Förnamn Efternamn"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={80}
+            required
+          />
+          <button type="submit" disabled={busy || !name.trim()} className="btn-primary shrink-0">
+            <UserPlus size={16} strokeWidth={2} />
+            {busy ? "…" : "Skapa"}
+          </button>
+        </form>
+        {error && (
+          <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>
+        )}
+        {testMsg && (
+          <p className="rounded-lg bg-success/10 px-3 py-2 text-sm text-success">{testMsg}</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <p className="section-label">
+          {loading ? "Laddar…" : `${guests.length} inbjudna`}
+        </p>
+        <p className="text-xs text-muted">
+          Notiser kräver att gästen öppnat appen från hemskärmen (iPhone) och tryckt Aktivera.
+          Utmaningar syns i appen även utan notis.
+        </p>
+        {!loading && guests.length === 0 && (
+          <p className="text-sm text-muted">Inga gäster ännu — lägg till den första ovan.</p>
+        )}
+        <ul className="space-y-2">
+          {guests.map((g) => (
+            <li
+              key={g.id}
+              className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="truncate font-medium text-cream">{g.displayName}</p>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide ${
+                      g.rsvpStatus === "yes"
+                        ? "bg-success/15 text-success"
+                        : g.rsvpStatus === "maybe"
+                          ? "bg-accent/15 text-accent-strong"
+                          : g.rsvpStatus === "no"
+                            ? "bg-danger/15 text-danger"
+                            : "bg-white/[0.06] text-muted"
+                    }`}
+                  >
+                    {g.rsvpStatus === "yes"
+                      ? "Jag kommer"
+                      : g.rsvpStatus === "maybe"
+                        ? "Kanske"
+                        : g.rsvpStatus === "no"
+                          ? "Kan inte"
+                          : "Ej svarat"}
+                  </span>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide ${
+                      g.pushEnabled
+                        ? "bg-success/15 text-success"
+                        : "bg-white/[0.06] text-muted"
+                    }`}
+                  >
+                    {g.pushEnabled ? "Notiser på" : "Notiser av"}
+                  </span>
+                </div>
+                {g.inviteUrl && (
+                  <p className="mt-0.5 truncate text-xs text-muted">{g.inviteUrl}</p>
+                )}
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => void testPush(g.id)}
+                  disabled={testPushId === g.id}
+                  className="btn-secondary !px-3 !py-2 text-xs"
+                  title={
+                    g.pushEnabled
+                      ? "Skicka testnotis"
+                      : "Ingen prenumeration sparad — aktivera först från hemskärmsappen"
+                  }
+                >
+                  <Bell size={14} strokeWidth={1.75} />
+                  {testPushId === g.id ? "…" : "Testnotis"}
+                </button>
+                <a
+                  href={smsHref(g)}
+                  className="btn-secondary !px-3 !py-2 text-xs"
+                  aria-disabled={!g.inviteUrl}
+                >
+                  <MessageSquare size={14} strokeWidth={1.75} />
+                  SMS
+                </a>
+                <button
+                  type="button"
+                  onClick={() => copyLink(g)}
+                  className="btn-secondary !px-3 !py-2 text-xs"
+                  disabled={!g.inviteUrl}
+                >
+                  <Copy size={14} strokeWidth={1.75} />
+                  {copiedId === g.id ? "Kopierad" : "Kopiera"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeGuest(g.id)}
+                  className="rounded-full p-2 text-muted transition hover:bg-danger/10 hover:text-danger"
+                  aria-label={`Ta bort ${g.displayName}`}
+                >
+                  <Trash2 size={15} strokeWidth={1.75} />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 function AdminContent() {
-  const [tab, setTab] = useState<"pending" | "approved" | "schedule">("pending");
+  const [tab, setTab] = useState<"guests" | "pending" | "approved" | "schedule">("guests");
 
   async function lock() {
     await fetch("/api/admin/logout", { method: "POST" });
@@ -741,7 +1075,7 @@ function AdminContent() {
         <div>
           <h1 className="font-display text-2xl font-medium text-cream">Admin</h1>
           <p className="mt-0.5 text-sm text-muted">
-            Godkänn, skapa, schemalägg och skicka utmaningar
+            Bjud in gäster, godkänn och skicka utmaningar
           </p>
         </div>
         <button onClick={lock} className="btn-ghost shrink-0">
@@ -750,9 +1084,10 @@ function AdminContent() {
         </button>
       </div>
 
-      <div className="card flex p-1">
+      <div className="card flex flex-wrap p-1">
         {(
           [
+            { key: "guests", label: "Gäster" },
             { key: "pending", label: "Godkänn" },
             { key: "approved", label: "Utmaningar" },
             { key: "schedule", label: "Schema" },
@@ -760,7 +1095,7 @@ function AdminContent() {
         ).map((t) => (
           <button
             key={t.key}
-            className={`flex-1 rounded-xl py-2 text-sm font-medium transition ${
+            className={`min-w-[4.5rem] flex-1 rounded-xl py-2 text-sm font-medium transition ${
               tab === t.key ? "bg-accent text-ink" : "text-muted"
             }`}
             onClick={() => setTab(t.key)}
@@ -770,6 +1105,7 @@ function AdminContent() {
         ))}
       </div>
 
+      {tab === "guests" && <GuestsTab />}
       {tab === "pending" && <PendingTab />}
       {tab === "approved" && <ApprovedTab />}
       {tab === "schedule" && <ScheduleTab />}

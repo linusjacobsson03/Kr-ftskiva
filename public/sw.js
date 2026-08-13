@@ -1,6 +1,5 @@
-// Minimal service worker: just enough for installability + Web Push.
-// Content is live party data, so we deliberately don't cache pages/API
-// responses — everyone should always see the freshest challenges/photos.
+// Minimal service worker: installability + Web Push for challenges.
+// Content is live party data — no page/API caching.
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -11,46 +10,70 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  // Straight passthrough to the network (required for installability on
-  // some browsers, but no caching behavior).
   event.respondWith(fetch(event.request));
 });
 
 self.addEventListener("push", (event) => {
-  let data = { title: "Kräftskiva", body: "Något nytt har hänt!" };
-  if (event.data) {
-    try {
-      data = { ...data, ...event.data.json() };
-    } catch {
-      data.body = event.data.text();
-    }
-  }
+  // All work must finish inside waitUntil — iOS treats late showNotification
+  // as a silent push and can revoke the subscription after a few of those.
+  event.waitUntil(
+    (async () => {
+      let data = {
+        title: "Kräftskiva",
+        body: "Något nytt har hänt!",
+        url: "/challenges",
+        tag: "kraftskiva",
+      };
+      if (event.data) {
+        try {
+          data = { ...data, ...event.data.json() };
+        } catch {
+          try {
+            data.body = event.data.text();
+          } catch {
+            // keep defaults
+          }
+        }
+      }
 
-  const options = {
-    body: data.body,
-    icon: "/icons/icon-192.png",
-    badge: "/icons/icon-192.png",
-    tag: data.tag || "kraftskiva",
-    renotify: true,
-    vibrate: [200, 100, 200],
-    data: { url: data.url || "/" },
-  };
-
-  event.waitUntil(self.registration.showNotification(data.title, options));
+      await self.registration.showNotification(data.title, {
+        body: data.body,
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-192.png",
+        tag: data.tag || "kraftskiva",
+        renotify: true,
+        data: { url: data.url || "/challenges" },
+      });
+    })()
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || "/";
+  const raw = event.notification.data?.url || "/challenges";
+  // iOS prefers absolute URLs for openWindow.
+  const targetUrl = raw.startsWith("http")
+    ? raw
+    : new URL(raw, self.location.origin).href;
 
   event.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clientList) => {
         for (const client of clientList) {
-          const url = new URL(client.url);
-          if (url.pathname === targetUrl && "focus" in client) {
-            return client.focus();
+          try {
+            const url = new URL(client.url);
+            const target = new URL(targetUrl);
+            if (url.origin === target.origin && "focus" in client) {
+              return client.focus().then((focused) => {
+                if (focused && "navigate" in focused) {
+                  return focused.navigate(targetUrl);
+                }
+                return focused;
+              });
+            }
+          } catch {
+            // ignore bad client urls
           }
         }
         if (self.clients.openWindow) {
