@@ -5,9 +5,7 @@ import {
   Camera,
   Check,
   Download,
-  ImagePlus,
   Images,
-  ListChecks,
   Play,
   Trash2,
   Video,
@@ -44,7 +42,7 @@ function PhotosContent() {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [previews, setPreviews] = useState<string[]>([]);
   const [caption, setCaption] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,7 +98,7 @@ function PhotosContent() {
           ? {
               id: entry.id,
               url: entry.photo.image_data,
-              caption: entry.photo.caption || entry.photo.display_name,
+              caption: entry.photo.caption || undefined,
               displayName: entry.photo.display_name,
             }
           : {
@@ -108,39 +106,58 @@ function PhotosContent() {
               url: entry.submission.photo_data,
               caption: entry.submission.title,
               displayName: entry.submission.display_name,
+              isChallenge: true,
+              points: entry.submission.points_awarded,
             }
       ),
     [feed]
   );
 
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []).filter((f) =>
+      f.type.startsWith("image/")
+    );
+    // Reset so the same files can be chosen again later.
+    e.target.value = "";
+    if (files.length === 0) return;
+
     setError(null);
+    setUploading(true);
     try {
-      const dataUrl = await fileToCompressedDataUrl(file);
-      setPreview(dataUrl);
+      const urls: string[] = [];
+      for (const file of files) {
+        urls.push(await fileToCompressedDataUrl(file));
+      }
+      setPreviews(urls);
     } catch {
-      setError("Kunde inte läsa bilden, testa en annan.");
+      setError("Kunde inte läsa bilderna, testa igen.");
+    } finally {
+      setUploading(false);
     }
   }
 
   async function upload() {
-    if (!preview) return;
+    if (previews.length === 0) return;
     setUploading(true);
     setError(null);
     try {
-      const res = await fetch("/api/photos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageData: preview, caption }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "Kunde inte ladda upp bilden.");
+      let failed = 0;
+      for (const imageData of previews) {
+        const res = await fetch("/api/photos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageData, caption }),
+        });
+        if (!res.ok) failed += 1;
+      }
+      if (failed > 0 && failed === previews.length) {
+        setError("Kunde inte ladda upp bilderna.");
         return;
       }
-      setPreview(null);
+      if (failed > 0) {
+        setError(`${failed} av ${previews.length} gick inte att ladda upp.`);
+      }
+      setPreviews([]);
       setCaption("");
       if (fileInputRef.current) fileInputRef.current.value = "";
       await load();
@@ -205,7 +222,7 @@ function PhotosContent() {
       {showCamera && (
         <CameraCapture
           onCapture={(dataUrl) => {
-            setPreview(dataUrl);
+            setPreviews([dataUrl]);
             setShowCamera(false);
           }}
           onClose={() => setShowCamera(false)}
@@ -214,7 +231,7 @@ function PhotosContent() {
       {showVideoRecorder && (
         <VideoRecorder
           onCapture={(dataUrl) => {
-            setPreview(dataUrl);
+            setPreviews([dataUrl]);
             setShowVideoRecorder(false);
           }}
           onClose={() => setShowVideoRecorder(false)}
@@ -229,63 +246,120 @@ function PhotosContent() {
         />
       )}
 
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-medium text-cream">Album</h1>
-          <p className="mt-0.5 text-sm text-muted">
-            Dina och andras foton — och alla bildbevis från utmaningarna
-          </p>
-        </div>
-        {feed.length > 0 && (
-          <button onClick={toggleSelectMode} className="btn-secondary shrink-0 text-sm">
-            {selectMode ? (
-              <X size={14} strokeWidth={1.75} />
-            ) : (
-              <ListChecks size={14} strokeWidth={1.75} />
-            )}
-            {selectMode ? "Avbryt" : "Välj"}
-          </button>
-        )}
+      <div>
+        <h1 className="font-display text-2xl font-medium text-cream">Album</h1>
+        <p className="mt-0.5 text-sm text-muted">
+          Dina och andras foton — och alla bildbevis från utmaningarna
+        </p>
       </div>
 
       {selectMode && (
-        <div className="card flex items-center justify-between gap-3 p-3">
-          <button onClick={toggleSelectAll} className="btn-ghost text-xs">
-            {selected.size === feed.length ? "Avmarkera alla" : "Markera alla"}
-          </button>
-          <button
-            onClick={() => void downloadSelected()}
-            disabled={selected.size === 0}
-            className="btn-primary text-sm"
-          >
-            <Download size={14} strokeWidth={1.75} />
-            Ladda ner {selected.size > 0 ? `(${selected.size})` : ""}
-          </button>
+        <div className="sticky top-0 z-20 -mx-4 bg-gradient-to-b from-bg from-70% to-transparent px-4 pb-3 pt-1">
+          <div className="mx-auto flex w-full max-w-lg items-center justify-between gap-3 rounded-3xl border border-black/10 bg-white/80 p-2.5 shadow-[0_12px_32px_-16px_rgba(28,23,18,0.35)] backdrop-blur-xl">
+            <button onClick={toggleSelectAll} className="btn-ghost shrink-0 px-2 text-xs">
+              {selected.size === feed.length ? "Avmarkera alla" : "Markera alla"}
+            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleSelectMode}
+                className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-medium text-cream transition hover:bg-white"
+              >
+                Avbryt
+              </button>
+              <button
+                onClick={() => void downloadSelected()}
+                disabled={selected.size === 0}
+                className="btn-primary rounded-full text-sm"
+              >
+                <Download size={14} strokeWidth={1.75} />
+                Ladda ner {selected.size > 0 ? `(${selected.size})` : ""}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!selectMode && (user || feed.length > 0) && (
+        <div className="sticky top-0 z-20 -mx-4 bg-gradient-to-b from-bg from-70% to-transparent px-4 pb-3 pt-1">
+          <div className="mx-auto flex w-full max-w-lg flex-col items-center gap-3">
+            {user && (
+              <div className="flex w-full items-stretch rounded-full border border-black/10 bg-white/80 p-1 shadow-[0_12px_32px_-16px_rgba(28,23,18,0.35)] backdrop-blur-xl">
+                <button
+                  type="button"
+                  onClick={() => setShowCamera(true)}
+                  className="flex flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1.5 py-2.5 text-[0.72rem] font-semibold leading-tight text-cream transition hover:bg-white active:bg-white active:text-ink"
+                >
+                  <Camera size={16} strokeWidth={2.5} />
+                  Ta foto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowVideoRecorder(true)}
+                  className="flex flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-1.5 py-2.5 text-[0.72rem] font-semibold leading-tight text-cream transition hover:bg-white active:bg-white active:text-ink"
+                >
+                  <Video size={16} strokeWidth={2.5} />
+                  Filma
+                </button>
+                <label className="flex flex-1 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-full px-1.5 py-2.5 text-[0.72rem] font-semibold leading-tight text-cream transition hover:bg-white has-[:focus]:bg-white">
+                  <Images size={16} strokeWidth={2.5} />
+                  Galleri
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={onFileChange}
+                  />
+                </label>
+              </div>
+            )}
+            {feed.length > 0 && (
+              <button
+                type="button"
+                onClick={toggleSelectMode}
+                className="rounded-full border border-black/10 bg-white/80 px-5 py-2.5 text-sm font-medium text-cream shadow-[0_8px_24px_-14px_rgba(28,23,18,0.35)] backdrop-blur-xl transition hover:bg-white"
+              >
+                Välj bilder
+              </button>
+            )}
+          </div>
         </div>
       )}
 
       {!selectMode && user && (
-        <div className="card space-y-3 p-4">
-          {preview ? (
-            <div className="space-y-3">
-              {preview.startsWith("data:video/") ? (
+        <>
+          {previews.length > 0 && (
+            <div className="card space-y-3 p-4">
+              {previews.length === 1 && previews[0].startsWith("data:video/") ? (
                 <video
-                  src={preview}
+                  src={previews[0]}
                   controls
                   playsInline
                   className="max-h-72 w-full rounded-xl object-cover"
                 />
               ) : (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={preview}
-                  alt="Förhandsvisning"
-                  className="max-h-72 w-full rounded-xl object-cover"
-                />
+                <div className="grid grid-cols-3 gap-2">
+                  {previews.map((src, i) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={`${i}-${src.slice(0, 32)}`}
+                      src={src}
+                      alt={`Förhandsvisning ${i + 1}`}
+                      className="aspect-square w-full rounded-xl object-cover"
+                    />
+                  ))}
+                </div>
               )}
+              <p className="text-xs text-muted">
+                {previews.length === 1
+                  ? "1 bild vald"
+                  : `${previews.length} bilder valda`}
+              </p>
               <input
                 className="input-field"
-                placeholder="Skriv en bildtext… (valfritt)"
+                placeholder="Skriv en bildtext… (valfritt, samma för alla)"
                 value={caption}
                 onChange={(e) => setCaption(e.target.value)}
                 maxLength={200}
@@ -294,13 +368,15 @@ function PhotosContent() {
                 <button onClick={() => void upload()} disabled={uploading} className="btn-primary flex-1">
                   {uploading
                     ? "Laddar upp…"
-                    : preview.startsWith("data:video/")
+                    : previews.length === 1 && previews[0].startsWith("data:video/")
                       ? "Dela video"
-                      : "Dela foto"}
+                      : previews.length === 1
+                        ? "Dela foto"
+                        : `Dela ${previews.length} foton`}
                 </button>
                 <button
                   onClick={() => {
-                    setPreview(null);
+                    setPreviews([]);
                     if (fileInputRef.current) fileInputRef.current.value = "";
                   }}
                   className="btn-secondary"
@@ -308,44 +384,11 @@ function PhotosContent() {
                   <X size={16} strokeWidth={1.75} />
                 </button>
               </div>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-black/15 py-9 text-center">
-              <ImagePlus size={26} strokeWidth={1.25} className="text-accent-strong" />
-              <span className="text-sm font-medium text-cream">Lägg till ett foto eller en video</span>
-              <div className="flex flex-wrap justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCamera(true)}
-                  className="btn-primary text-sm"
-                >
-                  <Camera size={16} strokeWidth={1.75} />
-                  Ta foto
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowVideoRecorder(true)}
-                  className="btn-secondary text-sm"
-                >
-                  <Video size={16} strokeWidth={1.75} />
-                  Filma
-                </button>
-                <label className="btn-secondary cursor-pointer text-sm">
-                  <Images size={16} strokeWidth={1.75} />
-                  Galleri
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={onFileChange}
-                  />
-                </label>
-              </div>
+              {error && <p className="text-sm text-danger">{error}</p>}
             </div>
           )}
-          {error && <p className="text-sm text-danger">{error}</p>}
-        </div>
+          {previews.length === 0 && error && <p className="text-sm text-danger">{error}</p>}
+        </>
       )}
 
       {!selectMode && !user && (
@@ -365,13 +408,13 @@ function PhotosContent() {
           <p className="text-sm text-muted">Inga foton än — bli den första</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <div className="grid grid-cols-2 items-stretch gap-3 sm:gap-4">
           {feed.map((entry, index) => {
             const isSelected = selected.has(entry.key);
 
             if (entry.kind === "evidence") {
               return (
-                <div key={entry.key} className="relative">
+                <div key={entry.key} className="relative flex h-full flex-col">
                   <EvidenceCard
                     photoUrl={entry.submission.photo_data}
                     title={entry.submission.title}
@@ -392,23 +435,21 @@ function PhotosContent() {
                       <Check size={12} strokeWidth={3} />
                     </button>
                   )}
-                  <p className="mt-1.5 px-1 text-xs text-muted">
-                    {entry.submission.display_name}
-                  </p>
                 </div>
               );
             }
 
             const photo = entry.photo;
             const isVideo = photo.image_data.startsWith("data:video/");
+            const isOwn = user?.id === photo.user_id;
             return (
-              <div key={entry.key} className="relative">
-                <button
-                  type="button"
-                  onClick={() => onThumbnailClick(index, entry.key)}
-                  className="block w-full text-left"
-                >
-                  <div className="relative overflow-hidden rounded-2xl bg-black/[0.04]">
+              <div key={entry.key} className="relative flex h-full flex-col">
+                <div className="flex h-full flex-col overflow-hidden rounded-2xl shadow-[0_2px_10px_-4px_rgba(28,23,18,0.12)]">
+                  <button
+                    type="button"
+                    onClick={() => onThumbnailClick(index, entry.key)}
+                    className="relative block w-full shrink-0 bg-black/[0.04] text-left"
+                  >
                     {isVideo ? (
                       <video
                         src={photo.image_data}
@@ -443,25 +484,33 @@ function PhotosContent() {
                         <Check size={12} strokeWidth={3} />
                       </span>
                     )}
-                  </div>
-                  <div className="mt-2 rounded-2xl border border-black/[0.06] bg-white px-4 py-3 shadow-[0_1px_2px_rgba(28,23,18,0.04)]">
-                    <p className="text-sm font-medium leading-snug text-ink">
-                      {photo.caption?.trim() || photo.display_name}
-                    </p>
-                    {photo.caption?.trim() && (
-                      <p className="mt-0.5 text-xs text-muted">{photo.display_name}</p>
+                  </button>
+                  <div className="flex flex-1 flex-col border border-t-0 border-black/[0.06] bg-white px-3 py-2.5 sm:px-4 sm:py-3">
+                    <button
+                      type="button"
+                      onClick={() => onThumbnailClick(index, entry.key)}
+                      className="text-left"
+                    >
+                      <p className="line-clamp-3 text-sm font-medium leading-snug text-ink">
+                        {photo.caption?.trim() || photo.display_name}
+                      </p>
+                      {photo.caption?.trim() && (
+                        <p className="mt-0.5 text-xs text-muted">{photo.display_name}</p>
+                      )}
+                    </button>
+                    {!selectMode && isOwn && (
+                      <button
+                        type="button"
+                        onClick={() => void remove(photo.id)}
+                        aria-label="Ta bort foto"
+                        className="mt-auto pt-2 text-left text-xs text-muted transition hover:text-danger"
+                      >
+                        <Trash2 size={12} strokeWidth={1.75} className="mr-1 inline" />
+                        Ta bort
+                      </button>
                     )}
                   </div>
-                </button>
-                {!selectMode && (user?.id === photo.user_id || user?.isAdmin) && (
-                  <button
-                    onClick={() => void remove(photo.id)}
-                    aria-label="Ta bort foto"
-                    className="mt-1.5 px-1 text-xs text-muted transition hover:text-danger"
-                  >
-                    <Trash2 size={12} strokeWidth={1.75} className="inline" /> Ta bort
-                  </button>
-                )}
+                </div>
               </div>
             );
           })}

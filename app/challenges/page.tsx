@@ -168,11 +168,8 @@ function ChallengesContent() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-7">
-      <div>
+      <div className="flex items-center justify-between gap-3">
         <h1 className="font-display text-2xl font-medium text-cream">Utmaningar</h1>
-        <p className="mt-0.5 text-sm text-muted">
-          Samla poäng och vinn kvällens kräftbukal
-        </p>
       </div>
 
       {user && <PushOptIn />}
@@ -216,11 +213,11 @@ function ChallengesContent() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <div className="grid grid-cols-3 items-stretch gap-2 sm:gap-3">
             {mine.map((s) => (
               <EvidenceCard
                 key={s.id}
-                photoUrl={s.photo_data}
+                photoUrl={s.photo_data!}
                 title={s.title}
                 points={s.points_awarded}
               />

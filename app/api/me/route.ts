@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser, sanitizeUser } from "@/lib/auth";
+import { ensureLocalDevSession, getCurrentUser, sanitizeUser } from "@/lib/auth";
 import { getUserPoints } from "@/lib/db";
 import { apiError } from "@/lib/apiError";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const user = await getCurrentUser();
+    // Localhost: auto-login so Album upload etc. works without an invite SMS.
+    let user = await getCurrentUser();
+    if (!user) {
+      user = await ensureLocalDevSession(request);
+    }
     if (!user) {
       return NextResponse.json({ user: null }, { status: 200 });
     }

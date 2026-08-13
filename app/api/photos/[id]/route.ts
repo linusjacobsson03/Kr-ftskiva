@@ -17,7 +17,7 @@ export async function DELETE(
     if (!photo) {
       return NextResponse.json({ error: "Hittades inte." }, { status: 404 });
     }
-    if (photo.user_id !== user.id && !user.is_admin) {
+    if (photo.user_id !== user.id) {
       return NextResponse.json({ error: "Ingen behörighet." }, { status: 403 });
     }
     await run("DELETE FROM photos WHERE id = ?", [id]);

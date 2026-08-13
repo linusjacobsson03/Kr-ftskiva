@@ -2,7 +2,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
-import { getOne, getOrCreateSetting, UserRow } from "./db";
+import { getOne, getOrCreateSetting, run, UserRow } from "./db";
 
 export const SESSION_COOKIE = "kraftskiva_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days — a party weekend and then some
@@ -70,6 +70,44 @@ export async function getCurrentUser(): Promise<UserRow | null> {
   if (!payload) return null;
   const user = await getOne<UserRow>("SELECT * FROM users WHERE id = ?", [payload.userId]);
   return user ?? null;
+}
+
+/** True for `next dev` on localhost / 127.0.0.1 — never in production. */
+export function isLocalDevHost(request?: Request): boolean {
+  if (process.env.NODE_ENV === "production") return false;
+  if (!request) return true;
+  const host = (request.headers.get("host") ?? "").split(":")[0].toLowerCase();
+  return host === "localhost" || host === "127.0.0.1" || host === "::1";
+}
+
+/**
+ * On local `next dev`, auto-sign-in so Album/Utmaningar work without an invite link.
+ * Uses the first guest in the DB, or creates "Local Dev" if the DB is empty.
+ */
+export async function ensureLocalDevSession(request: Request): Promise<UserRow | null> {
+  if (!isLocalDevHost(request)) return null;
+
+  const existing = await getCurrentUser();
+  if (existing) return existing;
+
+  let user = await getOne<UserRow>("SELECT * FROM users ORDER BY id ASC LIMIT 1");
+  if (!user) {
+    const hash = await bcrypt.hash(randomBytes(16).toString("hex"), 10);
+    const result = await run(
+      `INSERT INTO users (first_name, last_name, password_hash, avatar_emoji)
+       VALUES (?, ?, ?, ?)`,
+      ["Local", "Dev", hash, "🦞"]
+    );
+    user = await getOne<UserRow>("SELECT * FROM users WHERE id = ?", [
+      Number(result.lastInsertRowid),
+    ]);
+  }
+  if (!user) return null;
+
+  const token = await createSessionToken(user.id);
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE, token, sessionCookieOptions);
+  return user;
 }
 
 export const sessionCookieOptions = {

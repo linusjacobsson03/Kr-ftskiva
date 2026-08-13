@@ -16,12 +16,41 @@ function difficultyOf(points: number): { label: string; className: string } {
   return { label: "Vågad", className: "text-[color:var(--color-danger)]" };
 }
 
-/** Today's date as a local "YYYY-MM-DD" string, for prefilling the scheduling time input. */
-function todayLocalDateStr(): string {
+/** Fallback "HH:MM" when a challenge has no suggested_time — later = harder. */
+function defaultSuggestedTime(points: number): string {
+  if (points <= 1) return "17:30";
+  if (points <= 2) return "19:00";
+  if (points <= 3) return "20:30";
+  return "22:00";
+}
+
+function effectiveSuggestedTime(challenge: ChallengeTemplate): string {
+  return challenge.suggested_time || defaultSuggestedTime(challenge.points);
+}
+
+/** Quick-pick slots for a typical kräftskiva evening. */
+const PARTY_TIME_SLOTS = [
+  "16:30",
+  "17:00",
+  "17:30",
+  "18:00",
+  "18:30",
+  "19:00",
+  "19:30",
+  "20:00",
+  "20:30",
+  "21:00",
+  "21:30",
+  "22:00",
+  "22:30",
+] as const;
+
+function buildSendAtIsoFromTime(hhmm: string): string | null {
+  if (!/^\d{2}:\d{2}$/.test(hhmm)) return null;
+  const [h, m] = hhmm.split(":").map(Number);
   const d = new Date();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${mm}-${dd}`;
+  d.setHours(h, m, 0, 0);
+  return d.toISOString();
 }
 
 function formatDateTime(iso: string): string {
@@ -235,160 +264,314 @@ function RecipientDropdown({
   );
 }
 
-function ChallengeRow({
-  challenge,
-  users,
-  onSent,
-}: {
-  challenge: ChallengeTemplate;
-  users: UserOption[];
-  onSent: () => void;
-}) {
-  // Shared recipient picker feeds both "skicka nu" and "schemalägg".
-  const [recipients, setRecipients] = useState<Recipients>({
-    target: "random",
-    selectedUserIds: [],
+function formatClock(iso: string): string {
+  return new Date(iso).toLocaleTimeString("sv-SE", {
+    hour: "2-digit",
+    minute: "2-digit",
   });
-  const { target, selectedUserIds } = recipients;
+}
 
-  const [sendAt, setSendAt] = useState(
-    challenge.suggested_time ? `${todayLocalDateStr()}T${challenge.suggested_time}` : ""
-  );
+const TIMELINE_START_H = 16;
+const TIMELINE_END_H = 22;
+const TIMELINE_HOURS = TIMELINE_END_H - TIMELINE_START_H;
 
-  const [sending, setSending] = useState(false);
-  const [sendMsg, setSendMsg] = useState<string | null>(null);
-  const [scheduling, setScheduling] = useState(false);
-  const [scheduleMsg, setScheduleMsg] = useState<string | null>(null);
+function hourOffset(date: Date): number {
+  return date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600;
+}
 
-  const difficulty = difficultyOf(challenge.points);
+function EveningTimeline({
+  entries,
+  onCancel,
+}: {
+  entries: ScheduleEntry[];
+  onCancel: (id: number) => void;
+}) {
+  const visible = entries
+    .filter((e) => e.status === "scheduled" || e.status === "sending" || e.status === "sent")
+    .slice()
+    .sort((a, b) => new Date(a.send_at).getTime() - new Date(b.send_at).getTime());
 
-  async function sendNow() {
-    setSendMsg(null);
-    if (!recipientsValid(recipients)) {
-      setSendMsg("Välj minst en person.");
-      return;
-    }
-    setSending(true);
-    try {
-      const res = await fetch(`/api/challenges/${challenge.id}/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          target,
-          userIds: target === "user" ? selectedUserIds : undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setSendMsg(data.error || "Kunde inte skicka.");
-        return;
-      }
-      const base = `Skickat till ${data.sentTo} person${data.sentTo === 1 ? "" : "er"}`;
-      const pushPart =
-        data.pushesAttempted === 0
-          ? " — ingen notis (ingen har aktiverat)"
-          : data.pushesDelivered === 0
-            ? " — push misslyckades"
-            : ` — ${data.pushesDelivered} notis${data.pushesDelivered === 1 ? "" : "er"} skickad`;
-      setSendMsg(data.pushWarning ? `${base}. ${data.pushWarning}` : `${base}${pushPart}`);
-      onSent();
-    } finally {
-      setSending(false);
-    }
-  }
+  const now = new Date();
+  const nowH = hourOffset(now);
+  const showNow =
+    nowH >= TIMELINE_START_H && nowH <= TIMELINE_END_H && visible.length > 0;
 
-  async function schedule() {
-    setScheduleMsg(null);
-    if (!sendAt) {
-      setScheduleMsg("Välj en tid först.");
-      return;
-    }
-    if (!recipientsValid(recipients)) {
-      setScheduleMsg("Välj minst en person.");
-      return;
-    }
-    setScheduling(true);
-    try {
-      const res = await fetch(`/api/challenges/${challenge.id}/schedule`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sendAt: new Date(sendAt).toISOString(),
-          target,
-          userIds: target === "user" ? selectedUserIds : undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setScheduleMsg(data.error || "Kunde inte schemalägga.");
-        return;
-      }
-      setScheduleMsg("Schemalagd — se fliken Schema.");
-      onSent();
-    } finally {
-      setScheduling(false);
+  const hourMarks = Array.from({ length: TIMELINE_HOURS + 1 }, (_, i) => TIMELINE_START_H + i);
+
+  // Insert each challenge under the hour block it belongs to (16, 17, …).
+  const byHour = new Map<number, ScheduleEntry[]>();
+  for (const h of hourMarks.slice(0, -1)) byHour.set(h, []);
+  const outside: ScheduleEntry[] = [];
+  for (const e of visible) {
+    const h = Math.floor(hourOffset(new Date(e.send_at)));
+    if (h >= TIMELINE_START_H && h < TIMELINE_END_H) {
+      byHour.get(h)!.push(e);
+    } else if (h === TIMELINE_END_H) {
+      // Exactly 22:00 → last hour bucket visually under 21–22
+      byHour.get(TIMELINE_END_H - 1)!.push(e);
+    } else {
+      outside.push(e);
     }
   }
 
   return (
-    <div className="card space-y-3 p-4">
+    <div className="card space-y-4 p-4">
       <div>
-        <div className="flex items-center gap-2">
-          <p className="font-medium text-cream">
-            <span className="mr-1.5">{challenge.emoji}</span>
-            {challenge.title}
-          </p>
-          <span className={`chip ${difficulty.className}`}>{difficulty.label}</span>
-        </div>
-        {challenge.description && (
-          <p className="mt-0.5 text-sm text-muted">{challenge.description}</p>
-        )}
-        <p className="mt-1.5 text-xs text-muted/80">
-          {challenge.points}p · skickad {challenge.times_sent}x
-          {challenge.active_count > 0 && (
-            <span className="ml-1 text-accent-strong">· {challenge.active_count} aktiv nu</span>
-          )}
-          {challenge.scheduled_count > 0 && (
-            <span className="ml-1 text-accent-strong">
-              · {challenge.scheduled_count} schemalagd{challenge.scheduled_count === 1 ? "" : "a"}
-            </span>
-          )}
+        <p className="section-label">Kvällens tidslinje</p>
+        <p className="mt-1 text-sm text-muted">
+          {TIMELINE_START_H}:00–{TIMELINE_END_H}:00 — vilka utmaningar som skickas (eller redan
+          skickats) och till vem.
         </p>
       </div>
 
-      <div className="border-t border-black/10 pt-3">
-        <RecipientDropdown
-          users={users}
-          value={recipients}
-          onChange={setRecipients}
-          label="Mottagare"
-        />
+      <div className="relative space-y-0 pl-1">
+        {hourMarks.slice(0, -1).map((h) => {
+          const items = byHour.get(h) ?? [];
+          const nowInBucket = showNow && Math.floor(nowH) === h;
+          return (
+            <div key={h} className="relative border-l border-black/10 pl-4">
+              <div className="absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full border-2 border-black/15 bg-white" />
+              <div className="mb-2 flex items-baseline justify-between gap-2">
+                <p className="font-display text-sm font-semibold tabular text-muted">
+                  {String(h).padStart(2, "0")}:00
+                  <span className="font-sans text-xs font-normal text-muted/70">
+                    {" "}
+                    – {String(h + 1).padStart(2, "0")}:00
+                  </span>
+                </p>
+                {nowInBucket && (
+                  <span className="rounded-full bg-danger/10 px-2 py-0.5 text-[0.65rem] font-semibold text-danger">
+                    Nu {formatClock(now.toISOString())}
+                  </span>
+                )}
+              </div>
+
+              {items.length === 0 ? (
+                <p className="mb-4 text-xs text-muted/60">—</p>
+              ) : (
+                <div className="mb-4 space-y-2">
+                  {items.map((entry) => {
+                    const sent = entry.status === "sent";
+                    const sending = entry.status === "sending";
+                    return (
+                      <div
+                        key={entry.id}
+                        className={`rounded-2xl border px-3 py-2.5 ${
+                          sent
+                            ? "border-success/25 bg-success/[0.08]"
+                            : sending
+                              ? "border-accent/40 bg-accent/15"
+                              : "border-black/10 bg-white"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-display text-base font-semibold tabular text-accent-strong">
+                              {formatClock(entry.send_at)}
+                            </p>
+                            <p className="truncate text-sm font-medium text-cream">
+                              <span className="mr-1">{entry.challenge_emoji}</span>
+                              {entry.challenge_title}
+                            </p>
+                            <p className="mt-0.5 text-xs text-muted">
+                              {sent
+                                ? "Skickad till"
+                                : sending
+                                  ? "Skickar till"
+                                  : "Skickas till"}{" "}
+                              <span className="font-medium text-cream">{targetLabel(entry)}</span>
+                            </p>
+                          </div>
+                          {entry.status === "scheduled" && (
+                            <button
+                              type="button"
+                              onClick={() => onCancel(entry.id)}
+                              className="shrink-0 rounded-full p-1.5 text-muted transition hover:bg-black/[0.05] hover:text-danger"
+                              aria-label="Avboka"
+                              title="Avboka"
+                            >
+                              <X size={14} strokeWidth={1.75} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <div className="relative border-l border-transparent pl-4">
+          <div className="absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full border-2 border-black/15 bg-white" />
+          <p className="font-display text-sm font-semibold tabular text-muted">
+            {String(TIMELINE_END_H).padStart(2, "0")}:00
+          </p>
+        </div>
       </div>
 
-      <button className="btn-secondary w-full text-sm" disabled={sending} onClick={sendNow}>
-        <Send size={14} strokeWidth={1.75} />
-        {sending ? "Skickar…" : "Skicka nu"}
-      </button>
-      {sendMsg && <p className="text-sm text-accent-strong">{sendMsg}</p>}
+      {visible.length === 0 && (
+        <p className="text-center text-sm text-muted">
+          Inget på tidslinjen ännu — planera en godkänd utmaning nedan, eller skapa en ny med tid.
+        </p>
+      )}
 
-      <div className="space-y-2 border-t border-black/10 pt-3">
-        <p className="section-label">Eller schemalägg</p>
-        <input
-          type="datetime-local"
-          className="input-field text-sm"
-          value={sendAt}
-          onChange={(e) => setSendAt(e.target.value)}
-        />
-        <button className="btn-primary w-full text-sm" disabled={scheduling} onClick={schedule}>
-          <Clock size={14} strokeWidth={1.75} />
-          {scheduling ? "Schemalägger…" : "Schemalägg"}
-        </button>
-        {challenge.suggested_time && (
-          <p className="text-xs text-muted/70">Förslag: runt {challenge.suggested_time}</p>
-        )}
-        {scheduleMsg && <p className="text-sm text-accent-strong">{scheduleMsg}</p>}
-      </div>
+      {outside.length > 0 && (
+        <div className="space-y-1.5 border-t border-black/10 pt-3">
+          <p className="text-xs text-muted">
+            Utanför {TIMELINE_START_H}–{TIMELINE_END_H}
+          </p>
+          {outside.map((e) => (
+            <p key={e.id} className="text-sm text-cream">
+              <span className="font-display tabular text-accent-strong">{formatClock(e.send_at)}</span>
+              {" · "}
+              {e.challenge_emoji} {e.challenge_title}
+              {" · "}
+              {targetLabel(e)}
+            </p>
+          ))}
+        </div>
+      )}
     </div>
+  );
+}
+
+function PlanOntoTimeline({
+  challenges,
+  users,
+  onScheduled,
+}: {
+  challenges: ChallengeTemplate[];
+  users: UserOption[];
+  onScheduled: () => void;
+}) {
+  const [challengeId, setChallengeId] = useState<number | "">("");
+  const [recipients, setRecipients] = useState<Recipients>({
+    target: "random",
+    selectedUserIds: [],
+  });
+  const [sendTime, setSendTime] = useState("18:00");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const selected = challenges.find((c) => c.id === challengeId);
+
+  useEffect(() => {
+    if (selected) setSendTime(effectiveSuggestedTime(selected));
+  }, [selected]);
+
+  async function plan(e: React.FormEvent) {
+    e.preventDefault();
+    setMsg(null);
+    setErr(null);
+    if (!challengeId) {
+      setErr("Välj en utmaning.");
+      return;
+    }
+    if (!recipientsValid(recipients)) {
+      setErr("Välj minst en person.");
+      return;
+    }
+    const sendAtIso = buildSendAtIsoFromTime(sendTime);
+    if (!sendAtIso) {
+      setErr("Välj en tid.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/challenges/${challengeId}/schedule`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sendAt: sendAtIso,
+          target: recipients.target,
+          userIds: recipients.target === "user" ? recipients.selectedUserIds : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErr(data.error || "Kunde inte schemalägga.");
+        return;
+      }
+      setMsg(`Inlagd på tidslinjen kl ${sendTime}.`);
+      setChallengeId("");
+      setRecipients({ target: "random", selectedUserIds: [] });
+      onScheduled();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (challenges.length === 0) {
+    return (
+      <p className="text-sm text-muted">
+        Inga godkända utmaningar än — hämta och godkänn förslag under &quot;Godkänn utmaningar&quot;.
+      </p>
+    );
+  }
+
+  return (
+    <form onSubmit={plan} className="card space-y-3 p-4">
+      <p className="section-label">Lägg på tidslinjen</p>
+      <p className="text-sm text-muted">
+        Välj en godkänd utmaning, mottagare och klockslag — den dyker upp på tidslinjen ovan.
+      </p>
+      <label className="block text-sm">
+        <span className="mb-1.5 block text-xs text-muted">Utmaning</span>
+        <select
+          className="input-field"
+          value={challengeId}
+          onChange={(e) => setChallengeId(e.target.value ? Number(e.target.value) : "")}
+          required
+        >
+          <option value="">Välj…</option>
+          {challenges.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.emoji} {c.title} ({effectiveSuggestedTime(c)})
+            </option>
+          ))}
+        </select>
+      </label>
+      <RecipientDropdown
+        users={users}
+        value={recipients}
+        onChange={setRecipients}
+        label="Mottagare"
+      />
+      <label className="block text-sm">
+        <span className="mb-1.5 block text-xs text-muted">Tid</span>
+        <input
+          type="time"
+          className="input-field"
+          value={sendTime}
+          onChange={(e) => setSendTime(e.target.value)}
+          required
+        />
+      </label>
+      <div className="flex flex-wrap gap-1.5">
+        {PARTY_TIME_SLOTS.map((slot) => (
+          <button
+            key={slot}
+            type="button"
+            onClick={() => setSendTime(slot)}
+            className={`rounded-full px-2.5 py-1 text-[0.7rem] font-medium tabular transition ${
+              sendTime === slot
+                ? "bg-accent text-ink"
+                : "border border-black/10 text-muted hover:bg-black/[0.03]"
+            }`}
+          >
+            {slot}
+          </button>
+        ))}
+      </div>
+      {err && <p className="text-sm text-danger">{err}</p>}
+      {msg && <p className="text-sm text-accent-strong">{msg}</p>}
+      <button type="submit" disabled={busy} className="btn-primary w-full text-sm">
+        <Clock size={14} strokeWidth={1.75} />
+        {busy ? "Lägger till…" : `Schemalägg ${sendTime}`}
+      </button>
+    </form>
   );
 }
 
@@ -436,8 +619,8 @@ function PendingTab() {
         <p className="section-label">Utmaningsförslag</p>
         <p className="text-sm text-muted">
           Hämta ett gäng färdiga förslag i olika svårighetsgrader (Lätt → Vågad) och godkänn eller
-          avslå dem ett i taget. Godkända hamnar direkt i fliken <strong>Utmaningar</strong> och
-          kan skickas ut eller schemaläggas därifrån.
+          avslå dem ett i taget. Godkända kan sedan läggas på tidslinjen under fliken{" "}
+          <strong>Utmaningar</strong>.
         </p>
         <button onClick={fetchSuggestions} disabled={fetching} className="btn-primary w-full">
           <Sparkles size={14} strokeWidth={1.75} />
@@ -463,6 +646,7 @@ function PendingTab() {
 
 function ApprovedTab() {
   const [challenges, setChallenges] = useState<ChallengeTemplate[]>([]);
+  const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [recipients, setRecipients] = useState<Recipients>({
@@ -480,31 +664,31 @@ function ApprovedTab() {
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/challenges", { cache: "no-store" });
-    const data = await res.json();
-    setChallenges(data.challenges ?? []);
+    const [chRes, schRes] = await Promise.all([
+      fetch("/api/challenges", { cache: "no-store" }),
+      fetch("/api/schedule", { cache: "no-store" }),
+    ]);
+    const chData = await chRes.json();
+    const schData = await schRes.json();
+    setChallenges(chData.challenges ?? []);
+    setSchedule(schData.schedule ?? []);
     setLoading(false);
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
     fetch("/api/users", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => setUsers(data.users ?? []));
+    const interval = setInterval(() => void load(), 15000);
+    return () => clearInterval(interval);
   }, [load]);
 
   /** Combines the chosen "HH:MM" with today's date — null if left blank. */
   function buildSendAtIso(): string | null {
-    if (!sendTime) return null;
-    const [h, m] = sendTime.split(":").map(Number);
-    const d = new Date();
-    d.setHours(h, m, 0, 0);
-    return d.toISOString();
+    return sendTime ? buildSendAtIsoFromTime(sendTime) : null;
   }
 
-  // Creating a challenge here immediately dispatches it too — no detour via
-  // the list below. Recipients + tid feed straight into /send or /schedule
-  // right after the challenge itself is created.
   async function createChallenge(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
@@ -544,7 +728,7 @@ function ApprovedTab() {
           await load();
           return;
         }
-        setFormSuccess("Utmaningen skapades och schemalades — se fliken Schema.");
+        setFormSuccess(`Utmaningen skapades och syns på tidslinjen kl ${sendTime}.`);
       } else {
         const res = await fetch(`/api/challenges/${challengeId}/send`, {
           method: "POST",
@@ -577,8 +761,25 @@ function ApprovedTab() {
     }
   }
 
+  async function cancelSchedule(id: number) {
+    await fetch(`/api/schedule/${id}/cancel`, { method: "POST" });
+    await load();
+  }
+
   return (
     <div className="space-y-6">
+      {loading ? (
+        <p className="text-sm text-muted">Laddar tidslinje…</p>
+      ) : (
+        <EveningTimeline entries={schedule} onCancel={(id) => void cancelSchedule(id)} />
+      )}
+
+      <PlanOntoTimeline
+        challenges={challenges}
+        users={users}
+        onScheduled={() => void load()}
+      />
+
       <form onSubmit={createChallenge} className="card space-y-3 p-4">
         <p className="section-label">Ny utmaning</p>
         <RecipientDropdown
@@ -619,35 +820,34 @@ function ApprovedTab() {
             />
           </label>
         </div>
+        <div className="flex flex-wrap gap-1.5">
+          {PARTY_TIME_SLOTS.map((slot) => (
+            <button
+              key={slot}
+              type="button"
+              onClick={() => setSendTime(slot)}
+              className={`rounded-full px-2.5 py-1 text-[0.7rem] font-medium tabular transition ${
+                sendTime === slot
+                  ? "bg-accent text-ink"
+                  : "border border-black/10 text-muted hover:bg-black/[0.03]"
+              }`}
+            >
+              {slot}
+            </button>
+          ))}
+        </div>
         <p className="text-xs text-muted/70">Alla utmaningar har 5 minuter på sig att lösas.</p>
         {formError && <p className="text-sm text-danger">{formError}</p>}
         {formSuccess && <p className="text-sm text-accent-strong">{formSuccess}</p>}
         <button type="submit" disabled={creating} className="btn-primary w-full">
           <Send size={14} strokeWidth={1.75} />
-          {creating ? "Skapar…" : sendTime ? "Skapa och schemalägg" : "Skapa och skicka"}
+          {creating ? "Skapar…" : sendTime ? "Skapa och lägg på tidslinjen" : "Skapa och skicka nu"}
         </button>
       </form>
-
-      <div>
-        <p className="section-label mb-2">Godkända utmaningar</p>
-        {loading ? (
-          <p className="text-sm text-muted">Laddar…</p>
-        ) : challenges.length === 0 ? (
-          <p className="text-sm text-muted">
-            Inga godkända utmaningar än — gå till fliken &quot;Godkänn utmaningar&quot; för att
-            hämta och godkänna förslag.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {challenges.map((c) => (
-              <ChallengeRow key={c.id} challenge={c} users={users} onSent={load} />
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
+
 
 function ScheduleTab() {
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);
