@@ -3,19 +3,18 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { Camera, Home, LogOut, Settings, Star, Trophy, UtensilsCrossed } from "lucide-react";
+import { Camera, LogOut, Star, Trophy, UtensilsCrossed } from "lucide-react";
 import { useAuth } from "../providers";
 import Avatar from "./Avatar";
 
-// Admin isn't gated by an account flag — it's its own passcode-protected
-// area (see AdminPasscodeGate) that anyone who knows the passcode can open,
-// so the tab is always here rather than conditioned on the logged-in user.
+// Just the three things people need during the party. Hem is still reachable
+// via the logo in the header (see the Link below); Admin now lives behind a
+// button on the Topplista page instead of its own tab — it isn't gated by an
+// account flag (see AdminPasscodeGate), so where you enter from doesn't matter.
 const TABS = [
-  { href: "/hem", label: "Hem", icon: Home },
   { href: "/challenges", label: "Utmaningar", icon: UtensilsCrossed },
-  { href: "/photos", label: "Foton", icon: Camera },
+  { href: "/photos", label: "Album", icon: Camera },
   { href: "/leaderboard", label: "Topplista", icon: Trophy },
-  { href: "/admin", label: "Admin", icon: Settings },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {

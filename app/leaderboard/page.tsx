@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Trophy } from "lucide-react";
+import Link from "next/link";
+import { Settings, Trophy } from "lucide-react";
 import AuthGate from "../components/AuthGate";
 import Avatar from "../components/Avatar";
 import { useAuth } from "../providers";
@@ -32,9 +33,23 @@ function LeaderboardContent() {
 
   return (
     <div className="mx-auto max-w-xl space-y-6 px-4 py-7">
-      <div>
-        <h1 className="font-display text-2xl font-medium text-cream">Topplista</h1>
-        <p className="mt-0.5 text-sm text-muted">Vem tar hem kvällens kräftbukal?</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-medium text-cream">Topplista</h1>
+          <p className="mt-0.5 text-sm text-muted">Vem tar hem kvällens kräftbukal?</p>
+        </div>
+        {/* Admin no longer has its own nav tab — this is the way in now.
+            Not gated by login state, same as the tab used to be: anyone who
+            knows the shared passcode gets past AdminPasscodeGate regardless
+            of how they navigated here. */}
+        <Link
+          href="/admin"
+          aria-label="Admin"
+          title="Admin"
+          className="shrink-0 rounded-full p-2 text-muted transition hover:bg-white/[0.06] hover:text-cream"
+        >
+          <Settings size={19} strokeWidth={1.75} />
+        </Link>
       </div>
 
       {loading ? (
