@@ -27,9 +27,25 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <main className="flex-1 pb-24">{children}</main>
+      {/* No pb-24 here anymore — that was only ever needed because a
+          `fixed` nav overlays content and would otherwise hide the last
+          bit of it. `sticky` nav is back in normal document flow, so
+          content just ends where the nav begins with no reserved gap.
+          flex-col so a page's own root element can itself be flex-1 and
+          reliably fill the remaining height (e.g. for a full-bleed
+          background) — percentage heights like `min-h-full` don't resolve
+          dependably against a flex-grow parent's computed height, flex-grow
+          chaining does. */}
+      <main className="flex flex-1 flex-col">{children}</main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-white/[0.06] bg-bg/90 backdrop-blur-md">
+      {/* sticky, not fixed: on iOS Safari a `fixed` element near the bottom
+          gets visually dragged along with the browser's own address-bar
+          show/hide animation on scroll, which is exactly the "flies up on
+          scroll down, vanishes on scroll up" behavior reported. `sticky`
+          stays anchored to the flex layout instead of being taken out of
+          flow relative to the viewport, so it doesn't get caught up in
+          that animation — it just stays put. */}
+      <nav className="sticky bottom-0 z-20 w-full border-t border-white/[0.06] bg-bg/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-xl items-stretch justify-around">
           {TABS.map((tab) => {
             const active =
