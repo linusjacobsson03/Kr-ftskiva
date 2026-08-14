@@ -34,7 +34,7 @@ type AlbumEntry =
       kind: "evidence";
       id: number;
       sortAt: number;
-      submission: Submission;
+      submission: Submission & { photo_data: string };
     };
 
 function PhotosContent() {
@@ -80,13 +80,22 @@ function PhotosContent() {
         sortAt: new Date(photo.created_at.replace(" ", "T") + "Z").getTime(),
         photo,
       })),
-      ...submissions.map((submission) => ({
-        key: `evidence-${submission.id}`,
-        kind: "evidence" as const,
-        id: submission.id,
-        sortAt: new Date(submission.completed_at.replace(" ", "T") + "Z").getTime(),
-        submission,
-      })),
+      ...submissions
+        // The API only returns submissions with photo evidence, but the
+        // shared Submission type also covers the profile view where a
+        // photo is optional — narrow it here so the rest of this file can
+        // rely on a plain `string`.
+        .filter(
+          (submission): submission is Submission & { photo_data: string } =>
+            !!submission.photo_data
+        )
+        .map((submission) => ({
+          key: `evidence-${submission.id}`,
+          kind: "evidence" as const,
+          id: submission.id,
+          sortAt: new Date(submission.completed_at.replace(" ", "T") + "Z").getTime(),
+          submission,
+        })),
     ];
     return items.sort((a, b) => b.sortAt - a.sortAt);
   }, [photos, submissions]);
