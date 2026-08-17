@@ -75,7 +75,7 @@ function ChallengeCard({
         />
       )}
       <div className="flex items-start justify-between gap-3">
-        <p className="font-display text-lg font-medium text-cream">
+        <p className="min-w-0 flex-1 font-display text-lg font-medium text-cream">
           {assignment.title}
         </p>
         <Countdown
@@ -141,8 +141,20 @@ function ChallengesContent() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-7">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="font-display text-2xl font-medium text-cream">Utmaningar</h1>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-medium text-cream">
+            {user ? `Hej, ${user.firstName}` : "Utmaningar"}
+          </h1>
+          {user && (
+            <p className="mt-0.5 text-sm text-muted">
+              <span className="font-display text-base font-semibold tabular text-accent-strong">
+                {user.points ?? 0}
+              </span>{" "}
+              poäng
+            </p>
+          )}
+        </div>
       </div>
 
       {user && <PushOptIn />}

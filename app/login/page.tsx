@@ -17,7 +17,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace("/");
+      router.replace("/challenges");
     }
   }, [loading, user, router]);
 
@@ -37,7 +37,7 @@ export default function LoginPage() {
           alt=""
           width={64}
           height={64}
-          className="rounded-2xl shadow-[0_20px_50px_-20px_rgba(201,161,90,0.4)]"
+          className="rounded-2xl shadow-[0_20px_50px_-20px_rgba(46,130,214,0.45)]"
         />
         <h1 className="font-display mt-5 text-4xl font-medium tracking-tight text-cream">
           Lilla Brattön

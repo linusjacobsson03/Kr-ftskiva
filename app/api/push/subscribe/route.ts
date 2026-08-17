@@ -16,6 +16,10 @@ export async function POST(request: Request) {
     }
 
     await run(
+      "DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint != ?",
+      [user.id, subscription.endpoint]
+    );
+    await run(
       `INSERT INTO push_subscriptions (user_id, endpoint, subscription_json)
        VALUES (?, ?, ?)
        ON CONFLICT(endpoint) DO UPDATE SET user_id = excluded.user_id, subscription_json = excluded.subscription_json`,

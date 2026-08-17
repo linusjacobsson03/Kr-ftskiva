@@ -42,7 +42,7 @@ export default function PersonalInvitePage({
         await refresh();
         if (cancelled) return;
         if (data.partyLive) {
-          router.replace("/");
+          router.replace("/challenges");
           return;
         }
         setFirstName(data.firstName ?? null);

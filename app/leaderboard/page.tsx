@@ -12,7 +12,7 @@ function RankMark({ rank }: { rank: number }) {
   if (rank === 1) {
     return (
       <span className="flex shrink-0 items-center gap-1.5" title="1:a plats">
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-b from-[#f6e27a] to-[#d4a017] text-[#5c4508] shadow-[0_2px_8px_rgba(212,160,23,0.45)]">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-b from-[#9fd0ff] to-[#2e82d6] text-white shadow-[0_2px_8px_rgba(46,130,214,0.4)]">
           <Trophy size={15} strokeWidth={2.25} />
         </span>
         <span className="font-display text-base font-semibold tabular text-accent-strong">1</span>

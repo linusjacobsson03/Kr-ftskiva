@@ -12,7 +12,7 @@ export default function InvitePage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace("/");
+      router.replace("/challenges");
     }
   }, [loading, user, router]);
 

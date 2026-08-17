@@ -212,7 +212,7 @@ export default function InviteHero({
 
           <div className="relative mx-auto flex w-full max-w-lg flex-col gap-7 text-left">
             <div className="space-y-3">
-              <p className="text-center text-[0.8rem] font-semibold uppercase tracking-[0.12em] text-[#e2c07f]">
+              <p className="text-center text-[0.8rem] font-semibold uppercase tracking-[0.12em] text-accent-strong">
                 {EVENT.welcomeHeading}
               </p>
               <p className="text-sm leading-relaxed text-[#f3efe6]/70">{EVENT.welcomeIntro}</p>
@@ -239,7 +239,7 @@ export default function InviteHero({
             </div>
 
             <div className="flex w-full flex-col items-center gap-1 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-5 py-4 text-center">
-              <PartyPopper size={18} strokeWidth={1.75} className="text-[#c9a15a]" />
+              <PartyPopper size={18} strokeWidth={1.75} className="text-accent" />
               <p className="text-sm font-medium text-[#f3efe6]">{EVENT.invited} inbjudna till kvällen</p>
               {attending !== null && (
                 <p className="text-xs text-[#f3efe6]/45">

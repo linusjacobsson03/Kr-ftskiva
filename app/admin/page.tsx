@@ -1014,7 +1014,7 @@ function ApprovedTab() {
                   aria-pressed={bulkPoints === n}
                   className={`flex aspect-square min-h-12 flex-1 items-center justify-center rounded-full text-base font-semibold tabular transition ${
                     bulkPoints === n
-                      ? "bg-accent text-ink shadow-[0_4px_14px_-4px_rgba(168,127,58,0.55)]"
+                      ? "bg-accent text-ink shadow-[0_4px_14px_-4px_rgba(46,130,214,0.5)]"
                       : "border border-black/12 bg-white text-muted hover:bg-black/[0.03]"
                   }`}
                 >
@@ -1061,7 +1061,7 @@ function ApprovedTab() {
               aria-pressed={points === n}
               className={`flex aspect-square min-h-12 flex-1 items-center justify-center rounded-full text-base font-semibold tabular transition ${
                 points === n
-                  ? "bg-accent text-ink shadow-[0_4px_14px_-4px_rgba(168,127,58,0.55)]"
+                  ? "bg-accent text-ink shadow-[0_4px_14px_-4px_rgba(46,130,214,0.5)]"
                   : "border border-black/12 bg-white text-muted hover:bg-black/[0.03]"
               }`}
             >

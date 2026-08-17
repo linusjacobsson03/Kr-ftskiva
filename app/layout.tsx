@@ -24,7 +24,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Lilla Brattön",
   description: "Du är inbjuden till en personalaktivitet på Lilla Brattön.",
-  manifest: "/manifest.webmanifest?v=2",
+  manifest: "/manifest.webmanifest?v=3",
   applicationName: "Lilla Brattön",
   appleWebApp: {
     capable: true,

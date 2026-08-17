@@ -37,9 +37,9 @@ export default function Countdown({
 
   return (
     <span
-      className={`tabular font-display font-medium ${urgent ? "text-danger" : ""} ${className}`}
+      className={`inline-block w-[4.75rem] shrink-0 text-right font-display font-medium tabular-nums ${urgent ? "text-danger" : ""} ${className}`}
     >
-      {minutes}:{seconds.toString().padStart(2, "0")}
+      {String(minutes).padStart(2, "0")}:{seconds.toString().padStart(2, "0")}
     </span>
   );
 }

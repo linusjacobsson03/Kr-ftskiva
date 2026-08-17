@@ -87,7 +87,7 @@ export async function sendPushToUser(
 ): Promise<PushSendResult> {
   await ensureConfigured();
   const subs = await getAll<PushSubscriptionRow>(
-    "SELECT * FROM push_subscriptions WHERE user_id = ?",
+    "SELECT * FROM push_subscriptions WHERE user_id = ? ORDER BY id DESC",
     [userId]
   );
   if (subs.length === 0) {
@@ -99,14 +99,16 @@ export async function sendPushToUser(
         "Ingen notisprenumeration sparad för den här personen. Öppna hemskärmsappen inloggad och tryck Aktivera.",
     };
   }
-  const results = await Promise.all(subs.map((sub) => sendToSubscription(sub, payload)));
-  const delivered = results.filter((r) => r.ok).length;
-  const firstError = results.find((r) => !r.ok)?.error;
+  const [latest, ...stale] = subs;
+  if (stale.length > 0) {
+    await Promise.all(stale.map((s) => run("DELETE FROM push_subscriptions WHERE id = ?", [s.id])));
+  }
+  const result = await sendToSubscription(latest, payload);
   return {
-    attempted: subs.length,
-    delivered,
-    failed: subs.length - delivered,
-    error: delivered === 0 ? firstError : undefined,
+    attempted: 1,
+    delivered: result.ok ? 1 : 0,
+    failed: result.ok ? 0 : 1,
+    error: result.ok ? undefined : result.error,
   };
 }
 
