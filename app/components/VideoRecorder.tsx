@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { RefreshCw, Square, X } from "lucide-react";
+import { createMirroredCaptureStream } from "@/lib/mirrorVideoStream";
 
 // Vercel Functions hard-cap the request body at 4.5MB, and base64 inflates
 // binary size by ~1.33x, so raw output must stay well under that. At these
@@ -48,6 +49,7 @@ export default function VideoRecorder({
   const chunksRef = useRef<Blob[]>([]);
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mirrorStopRef = useRef<(() => void) | null>(null);
 
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
   const [ready, setReady] = useState(false);
@@ -90,6 +92,8 @@ export default function VideoRecorder({
     start();
     return () => {
       cancelled = true;
+      mirrorStopRef.current?.();
+      mirrorStopRef.current = null;
       stopStream();
       clearTimers();
     };
@@ -109,9 +113,16 @@ export default function VideoRecorder({
 
   function startRecording() {
     const stream = streamRef.current;
-    if (!stream || !ready || recording) return;
+    const video = videoRef.current;
+    if (!stream || !video || !ready || recording) return;
     const mimeType = pickMimeType();
-    const recorder = new MediaRecorder(stream, {
+    let recordStream = stream;
+    if (facingMode === "user") {
+      const mirrored = createMirroredCaptureStream(video, stream);
+      recordStream = mirrored.stream;
+      mirrorStopRef.current = mirrored.stop;
+    }
+    const recorder = new MediaRecorder(recordStream, {
       ...(mimeType ? { mimeType } : {}),
       videoBitsPerSecond: VIDEO_BITRATE,
       audioBitsPerSecond: AUDIO_BITRATE,
@@ -120,7 +131,11 @@ export default function VideoRecorder({
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
-    recorder.onstop = () => finish(mimeType || recorder.mimeType || "video/webm");
+    recorder.onstop = () => {
+      mirrorStopRef.current?.();
+      mirrorStopRef.current = null;
+      finish(mimeType || recorder.mimeType || "video/webm");
+    };
     recorderRef.current = recorder;
     recorder.start();
     setRecording(true);
@@ -157,6 +172,8 @@ export default function VideoRecorder({
 
   function close() {
     clearTimers();
+    mirrorStopRef.current?.();
+    mirrorStopRef.current = null;
     stopStream();
     onClose();
   }

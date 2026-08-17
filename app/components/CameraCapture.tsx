@@ -7,6 +7,7 @@ import {
   fileToCompressedDataUrl,
   videoFrameToCompressedDataUrl,
 } from "@/lib/compressImage";
+import { createMirroredCaptureStream } from "@/lib/mirrorVideoStream";
 import Countdown from "./Countdown";
 
 const MAX_SECONDS = 8;
@@ -55,6 +56,7 @@ export default function CameraCapture({
   const chunksRef = useRef<Blob[]>([]);
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mirrorStopRef = useRef<(() => void) | null>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
 
   const [mounted, setMounted] = useState(false);
@@ -134,6 +136,8 @@ export default function CameraCapture({
     void start();
     return () => {
       cancelled = true;
+      mirrorStopRef.current?.();
+      mirrorStopRef.current = null;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     };
@@ -161,9 +165,16 @@ export default function CameraCapture({
 
   function startRecording() {
     const stream = streamRef.current;
-    if (!stream || !ready || recording) return;
+    const video = videoRef.current;
+    if (!stream || !video || !ready || recording) return;
     const mimeType = pickMimeType();
-    const recorder = new MediaRecorder(stream, {
+    let recordStream = stream;
+    if (facingMode === "user") {
+      const mirrored = createMirroredCaptureStream(video, stream);
+      recordStream = mirrored.stream;
+      mirrorStopRef.current = mirrored.stop;
+    }
+    const recorder = new MediaRecorder(recordStream, {
       ...(mimeType ? { mimeType } : {}),
       videoBitsPerSecond: VIDEO_BITRATE,
       audioBitsPerSecond: AUDIO_BITRATE,
@@ -172,7 +183,11 @@ export default function CameraCapture({
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
-    recorder.onstop = () => finish(mimeType || recorder.mimeType || "video/webm");
+    recorder.onstop = () => {
+      mirrorStopRef.current?.();
+      mirrorStopRef.current = null;
+      finish(mimeType || recorder.mimeType || "video/webm");
+    };
     recorderRef.current = recorder;
     recorder.start();
     setRecording(true);
@@ -208,6 +223,8 @@ export default function CameraCapture({
 
   function close() {
     clearTimers();
+    mirrorStopRef.current?.();
+    mirrorStopRef.current = null;
     stopStream();
     onClose();
   }
