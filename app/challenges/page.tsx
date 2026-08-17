@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Camera, CheckCircle2, Clock, ImageOff } from "lucide-react";
-import CameraCapture from "../components/CameraCapture";
+import CameraCapture, { type CaptureMeta } from "../components/CameraCapture";
+import { fileNameForVideoBlob } from "@/lib/cameraVideo";
 import Countdown from "../components/Countdown";
 import EvidenceCard from "../components/EvidenceCard";
 import PushOptIn from "../components/PushOptIn";
@@ -22,18 +23,34 @@ function ChallengeCard({
   const [success, setSuccess] = useState<number | null>(null);
   const [showCamera, setShowCamera] = useState(false);
 
-  async function submitEvidence(imageData: string) {
+  async function submitEvidence(imageData: string, meta?: CaptureMeta) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/challenges/assignments/${assignment.id}/submit`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageData }),
-      });
-      const data = await res.json();
+      let res: Response;
+      if (meta?.blob) {
+        const form = new FormData();
+        form.append("file", meta.blob, fileNameForVideoBlob(meta.blob));
+        if (meta.mirrored) form.append("mirrored", "1");
+        res = await fetch(`/api/challenges/assignments/${assignment.id}/submit`, {
+          method: "POST",
+          body: form,
+        });
+      } else {
+        res = await fetch(`/api/challenges/assignments/${assignment.id}/submit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageData }),
+        });
+      }
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error || "Kunde inte skicka in beviset.");
+        setError(
+          data.error ||
+            (res.status === 413
+              ? "Videon är för stor, spela in ett kortare klipp."
+              : "Kunde inte skicka in beviset.")
+        );
         if (res.status === 410) setTimeout(onDone, 1500);
         return;
       }
@@ -67,9 +84,9 @@ function ChallengeCard({
             points: assignment.points,
             deadlineIso: assignment.deadlineIso,
           }}
-          onCapture={(dataUrl) => {
+          onCapture={(dataUrl, meta) => {
             setShowCamera(false);
-            void submitEvidence(dataUrl);
+            void submitEvidence(dataUrl, meta);
           }}
           onClose={() => setShowCamera(false)}
         />
@@ -205,6 +222,7 @@ function ChallengesContent() {
                 photoUrl={s.photo_data!}
                 title={s.title}
                 points={s.points_awarded}
+                mirrored={Boolean(s.is_mirrored)}
                 compact
               />
             ))}

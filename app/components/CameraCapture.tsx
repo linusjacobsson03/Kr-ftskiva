@@ -7,27 +7,20 @@ import {
   fileToCompressedDataUrl,
   videoFrameToCompressedDataUrl,
 } from "@/lib/compressImage";
-import { createMirroredCaptureStream } from "@/lib/mirrorVideoStream";
+import {
+  AUDIO_BITRATE,
+  MAX_VIDEO_BYTES,
+  pickRecorderMimeType,
+  VIDEO_BITRATE,
+  VIDEO_MAX_SECONDS,
+  videoCaptureConstraints,
+} from "@/lib/cameraVideo";
 import Countdown from "./Countdown";
 
-const MAX_SECONDS = 8;
-const VIDEO_BITRATE = 2_200_000;
-const AUDIO_BITRATE = 96_000;
-
-function pickMimeType(): string {
-  const candidates = [
-    "video/mp4",
-    "video/webm;codecs=vp9,opus",
-    "video/webm;codecs=vp8,opus",
-    "video/webm",
-  ];
-  for (const type of candidates) {
-    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type)) {
-      return type;
-    }
-  }
-  return "";
-}
+export type CaptureMeta = {
+  blob?: Blob;
+  mirrored?: boolean;
+};
 
 /**
  * Full-screen in-app camera (photo + video + gallery). Portaled to body so
@@ -40,7 +33,7 @@ export default function CameraCapture({
   initialMode = "photo",
   challenge,
 }: {
-  onCapture: (dataUrl: string) => void;
+  onCapture: (dataUrl: string, meta?: CaptureMeta) => void;
   onClose: () => void;
   initialMode?: "photo" | "video";
   challenge?: {
@@ -56,7 +49,6 @@ export default function CameraCapture({
   const chunksRef = useRef<Blob[]>([]);
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const mirrorStopRef = useRef<(() => void) | null>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
 
   const [mounted, setMounted] = useState(false);
@@ -105,13 +97,31 @@ export default function CameraCapture({
       streamRef.current?.getTracks().forEach((t) => t.stop());
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: facingMode },
-            width: { ideal: mode === "video" ? 1920 : 2560 },
-            height: { ideal: mode === "video" ? 1080 : 1440 },
-          },
+          video:
+            mode === "video"
+              ? videoCaptureConstraints(facingMode)
+              : {
+                  facingMode: { ideal: facingMode },
+                  width: { ideal: 2560 },
+                  height: { ideal: 1440 },
+                },
           audio: mode === "video",
         });
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack && mode === "video") {
+          if ("contentHint" in videoTrack) {
+            (videoTrack as MediaStreamTrack & { contentHint: string }).contentHint = "motion";
+          }
+          try {
+            await videoTrack.applyConstraints({
+              width: 1920,
+              height: 1080,
+              frameRate: 30,
+            });
+          } catch {
+            // Device may not support exact 1080p — keep the ideal constraints.
+          }
+        }
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
           return;
@@ -136,8 +146,6 @@ export default function CameraCapture({
     void start();
     return () => {
       cancelled = true;
-      mirrorStopRef.current?.();
-      mirrorStopRef.current = null;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     };
@@ -165,16 +173,9 @@ export default function CameraCapture({
 
   function startRecording() {
     const stream = streamRef.current;
-    const video = videoRef.current;
-    if (!stream || !video || !ready || recording) return;
-    const mimeType = pickMimeType();
-    let recordStream = stream;
-    if (facingMode === "user") {
-      const mirrored = createMirroredCaptureStream(video, stream);
-      recordStream = mirrored.stream;
-      mirrorStopRef.current = mirrored.stop;
-    }
-    const recorder = new MediaRecorder(recordStream, {
+    if (!stream || !ready || recording) return;
+    const mimeType = pickRecorderMimeType();
+    const recorder = new MediaRecorder(stream, {
       ...(mimeType ? { mimeType } : {}),
       videoBitsPerSecond: VIDEO_BITRATE,
       audioBitsPerSecond: AUDIO_BITRATE,
@@ -183,17 +184,13 @@ export default function CameraCapture({
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
-    recorder.onstop = () => {
-      mirrorStopRef.current?.();
-      mirrorStopRef.current = null;
-      finish(mimeType || recorder.mimeType || "video/webm");
-    };
+    recorder.onstop = () => finish(mimeType || recorder.mimeType || "video/mp4");
     recorderRef.current = recorder;
     recorder.start();
     setRecording(true);
     setElapsed(0);
     tickRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
-    stopTimerRef.current = setTimeout(stopRecording, MAX_SECONDS * 1000);
+    stopTimerRef.current = setTimeout(stopRecording, VIDEO_MAX_SECONDS * 1000);
   }
 
   function stopRecording() {
@@ -206,25 +203,29 @@ export default function CameraCapture({
   }
 
   function finish(mimeType: string) {
-    const blob = new Blob(chunksRef.current, { type: mimeType });
+    const type = mimeType.split(";")[0] || "video/mp4";
+    const blob = new Blob(chunksRef.current, { type });
     chunksRef.current = [];
     stopStream();
-    const reader = new FileReader();
-    reader.onload = () => {
-      setProcessing(false);
-      onCapture(reader.result as string);
-    };
-    reader.onerror = () => {
+    if (blob.size < 500) {
       setProcessing(false);
       setError("Kunde inte spara videon, testa igen.");
-    };
-    reader.readAsDataURL(blob);
+      return;
+    }
+    if (blob.size > MAX_VIDEO_BYTES) {
+      setProcessing(false);
+      setError("Klippet blev för stort — spela in ett kortare.");
+      return;
+    }
+    setProcessing(false);
+    onCapture(URL.createObjectURL(blob), {
+      blob,
+      mirrored: facingMode === "user",
+    });
   }
 
   function close() {
     clearTimers();
-    mirrorStopRef.current?.();
-    mirrorStopRef.current = null;
     stopStream();
     onClose();
   }
@@ -293,7 +294,7 @@ export default function CameraCapture({
             {mode === "video" && recording ? (
               <span className="flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-1.5 text-sm font-medium text-white backdrop-blur">
                 <span className="h-2 w-2 animate-pulse rounded-full bg-danger" />
-                {elapsed}s / {MAX_SECONDS}s
+                {elapsed}s / {VIDEO_MAX_SECONDS}s
               </span>
             ) : (
               <span />
@@ -399,7 +400,7 @@ export default function CameraCapture({
             : mode === "video"
               ? recording
                 ? "Tryck för att stoppa"
-                : "Byt till video och filma ett kort klipp"
+                : `Filma upp till ${VIDEO_MAX_SECONDS} sekunder i 1080p`
               : "Foto, video eller galleri"}
         </p>
       </div>

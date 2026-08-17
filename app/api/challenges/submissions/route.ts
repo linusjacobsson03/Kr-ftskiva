@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     // Profile view: all completed challenges for a user (photo optional).
     if (userIdFilter) {
       const submissions = await getAll(
-        `SELECT a.id, a.user_id, a.photo_data, a.completed_at, a.points_awarded,
+        `SELECT a.id, a.user_id, a.photo_data, a.completed_at, a.points_awarded, a.is_mirrored,
           c.title, c.emoji,
           (u.first_name || ' ' || u.last_name) AS display_name
          FROM challenge_assignments a
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
     // Album / "mine": only rows with photo evidence.
     const submissions = mineOnly
       ? await getAll(
-          `SELECT a.id, a.user_id, a.photo_data, a.completed_at, a.points_awarded,
+          `SELECT a.id, a.user_id, a.photo_data, a.completed_at, a.points_awarded, a.is_mirrored,
             c.title, c.emoji,
             (u.first_name || ' ' || u.last_name) AS display_name
            FROM challenge_assignments a
@@ -53,7 +53,7 @@ export async function GET(request: Request) {
           [user!.id]
         )
       : await getAll(
-          `SELECT a.id, a.user_id, a.photo_data, a.completed_at, a.points_awarded,
+          `SELECT a.id, a.user_id, a.photo_data, a.completed_at, a.points_awarded, a.is_mirrored,
             c.title, c.emoji,
             (u.first_name || ' ' || u.last_name) AS display_name
            FROM challenge_assignments a

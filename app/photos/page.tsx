@@ -17,6 +17,8 @@ import EvidenceCard from "../components/EvidenceCard";
 import { useAuth } from "../providers";
 import { fileToCompressedDataUrl } from "@/lib/compressImage";
 import { extensionForDataUrl, saveItems } from "@/lib/download";
+import { fileNameForVideoBlob, isVideoSrc } from "@/lib/cameraVideo";
+import type { CaptureMeta } from "../components/CameraCapture";
 import type { PhotoItem, Submission } from "@/lib/types";
 import Link from "next/link";
 
@@ -36,12 +38,18 @@ type AlbumEntry =
       submission: Submission & { photo_data: string };
     };
 
+type PreviewItem = {
+  src: string;
+  blob?: Blob;
+  mirrored?: boolean;
+};
+
 function PhotosContent() {
   const { user } = useAuth();
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
-  const [previews, setPreviews] = useState<string[]>([]);
+  const [previews, setPreviews] = useState<PreviewItem[]>([]);
   const [caption, setCaption] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +116,7 @@ function PhotosContent() {
               url: entry.photo.image_data,
               caption: entry.photo.caption || undefined,
               displayName: entry.photo.display_name,
+              mirrored: Boolean(entry.photo.is_mirrored),
             }
           : {
               id: entry.id + 1_000_000,
@@ -116,6 +125,7 @@ function PhotosContent() {
               displayName: entry.submission.display_name,
               isChallenge: true,
               points: entry.submission.points_awarded,
+              mirrored: Boolean(entry.submission.is_mirrored),
             }
       ),
     [feed]
@@ -136,7 +146,7 @@ function PhotosContent() {
       for (const file of files) {
         urls.push(await fileToCompressedDataUrl(file));
       }
-      setPreviews(urls);
+      setPreviews(urls.map((src) => ({ src })));
     } catch {
       setError("Kunde inte läsa bilderna, testa igen.");
     } finally {
@@ -150,25 +160,46 @@ function PhotosContent() {
     setError(null);
     try {
       let failed = 0;
-      for (const imageData of previews) {
-        const res = await fetch("/api/photos", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageData, caption }),
-        });
-        if (!res.ok) failed += 1;
+      let lastError = "Kunde inte ladda upp.";
+      for (const item of previews) {
+        let res: Response;
+        if (item.blob) {
+          const form = new FormData();
+          form.append("file", item.blob, fileNameForVideoBlob(item.blob));
+          form.append("caption", caption);
+          if (item.mirrored) form.append("mirrored", "1");
+          res = await fetch("/api/photos", { method: "POST", body: form });
+        } else {
+          res = await fetch("/api/photos", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ imageData: item.src, caption }),
+          });
+        }
+        if (!res.ok) {
+          failed += 1;
+          const data = await res.json().catch(() => ({}));
+          lastError =
+            (data as { error?: string }).error ||
+            (res.status === 413 ? "Videon är för stor, spela in ett kortare klipp." : lastError);
+        }
       }
       if (failed > 0 && failed === previews.length) {
-        setError("Kunde inte ladda upp bilderna.");
+        setError(lastError);
         return;
       }
       if (failed > 0) {
         setError(`${failed} av ${previews.length} gick inte att ladda upp.`);
       }
+      for (const item of previews) {
+        if (item.src.startsWith("blob:")) URL.revokeObjectURL(item.src);
+      }
       setPreviews([]);
       setCaption("");
       if (fileInputRef.current) fileInputRef.current.value = "";
       await load();
+    } catch {
+      setError("Kunde inte ladda upp, kolla nätverket och testa igen.");
     } finally {
       setUploading(false);
     }
@@ -229,8 +260,8 @@ function PhotosContent() {
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-7">
       {showCamera && (
         <CameraCapture
-          onCapture={(dataUrl) => {
-            setPreviews([dataUrl]);
+          onCapture={(src, meta?: CaptureMeta) => {
+            setPreviews([{ src, blob: meta?.blob, mirrored: meta?.mirrored }]);
             setShowCamera(false);
           }}
           onClose={() => setShowCamera(false)}
@@ -239,8 +270,8 @@ function PhotosContent() {
       {showVideoRecorder && (
         <CameraCapture
           initialMode="video"
-          onCapture={(dataUrl) => {
-            setPreviews([dataUrl]);
+          onCapture={(src, meta?: CaptureMeta) => {
+            setPreviews([{ src, blob: meta?.blob, mirrored: meta?.mirrored }]);
             setShowVideoRecorder(false);
           }}
           onClose={() => setShowVideoRecorder(false)}
@@ -341,20 +372,22 @@ function PhotosContent() {
         <>
           {previews.length > 0 && (
             <div className="card space-y-3 p-4">
-              {previews.length === 1 && previews[0].startsWith("data:video/") ? (
+              {previews.length === 1 && isVideoSrc(previews[0].src, previews[0].blob?.type) ? (
                 <video
-                  src={previews[0]}
+                  src={previews[0].src}
                   controls
                   playsInline
-                  className="max-h-72 w-full rounded-xl object-cover"
+                  className={`max-h-72 w-full rounded-xl object-cover ${
+                    previews[0].mirrored ? "scale-x-[-1]" : ""
+                  }`}
                 />
               ) : (
                 <div className="grid grid-cols-3 gap-2">
-                  {previews.map((src, i) => (
+                  {previews.map((item, i) => (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      key={`${i}-${src.slice(0, 32)}`}
-                      src={src}
+                      key={`${i}-${item.src.slice(0, 32)}`}
+                      src={item.src}
                       alt={`Förhandsvisning ${i + 1}`}
                       className="aspect-square w-full rounded-xl object-cover"
                     />
@@ -363,7 +396,9 @@ function PhotosContent() {
               )}
               <p className="text-xs text-muted">
                 {previews.length === 1
-                  ? "1 bild vald"
+                  ? isVideoSrc(previews[0].src, previews[0].blob?.type)
+                    ? "1 video vald"
+                    : "1 bild vald"
                   : `${previews.length} bilder valda`}
               </p>
               <input
@@ -377,7 +412,7 @@ function PhotosContent() {
                 <button onClick={() => void upload()} disabled={uploading} className="btn-primary flex-1">
                   {uploading
                     ? "Laddar upp…"
-                    : previews.length === 1 && previews[0].startsWith("data:video/")
+                    : previews.length === 1 && isVideoSrc(previews[0].src, previews[0].blob?.type)
                       ? "Dela video"
                       : previews.length === 1
                         ? "Dela foto"
@@ -385,6 +420,9 @@ function PhotosContent() {
                 </button>
                 <button
                   onClick={() => {
+                    for (const item of previews) {
+                      if (item.src.startsWith("blob:")) URL.revokeObjectURL(item.src);
+                    }
                     setPreviews([]);
                     if (fileInputRef.current) fileInputRef.current.value = "";
                   }}
@@ -428,6 +466,7 @@ function PhotosContent() {
                     photoUrl={entry.submission.photo_data}
                     title={entry.submission.title}
                     points={entry.submission.points_awarded}
+                    mirrored={Boolean(entry.submission.is_mirrored)}
                     onClick={() => onThumbnailClick(index, entry.key)}
                   />
                   {selectMode && (
@@ -449,7 +488,7 @@ function PhotosContent() {
             }
 
             const photo = entry.photo;
-            const isVideo = photo.image_data.startsWith("data:video/");
+            const isVideo = isVideoSrc(photo.image_data);
             const isOwn = user?.id === photo.user_id;
             return (
               <div key={entry.key} className="relative flex h-full flex-col">
@@ -465,7 +504,9 @@ function PhotosContent() {
                         muted
                         playsInline
                         preload="metadata"
-                        className="aspect-[4/5] w-full object-cover"
+                        className={`aspect-[4/5] w-full object-cover ${
+                          photo.is_mirrored ? "scale-x-[-1]" : ""
+                        }`}
                       />
                     ) : (
                       /* eslint-disable-next-line @next/next/no-img-element */

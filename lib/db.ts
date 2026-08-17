@@ -178,6 +178,16 @@ async function ensureMigrations(): Promise<void> {
   await getClient().execute(
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_invite_token ON users(invite_token)`
   );
+  await ensureColumn(
+    "photos",
+    "is_mirrored",
+    `ALTER TABLE photos ADD COLUMN is_mirrored INTEGER NOT NULL DEFAULT 0`
+  );
+  await ensureColumn(
+    "challenge_assignments",
+    "is_mirrored",
+    `ALTER TABLE challenge_assignments ADD COLUMN is_mirrored INTEGER NOT NULL DEFAULT 0`
+  );
 }
 
 function getReady(): Promise<void> {
@@ -288,6 +298,7 @@ export interface PhotoRow {
   caption: string;
   image_data: string;
   created_at: string;
+  is_mirrored: number;
 }
 
 export interface ChallengeRow {
@@ -326,6 +337,7 @@ export interface AssignmentRow {
   photo_data: string | null;
   completed_at: string | null;
   points_awarded: number;
+  is_mirrored: number;
 }
 
 /** Every challenge gets the same 5-minute window to submit photo proof. */

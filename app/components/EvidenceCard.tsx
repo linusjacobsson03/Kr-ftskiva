@@ -10,6 +10,7 @@ export default function EvidenceCard({
   onClick,
   className = "",
   compact = false,
+  mirrored = false,
 }: {
   photoUrl: string;
   title: string;
@@ -17,9 +18,12 @@ export default function EvidenceCard({
   onClick?: () => void;
   className?: string;
   compact?: boolean;
+  mirrored?: boolean;
 }) {
   const isVideo = photoUrl.startsWith("data:video/") || photoUrl.startsWith("blob:");
-  const mediaClass = `w-full object-cover ${compact ? "aspect-square" : "aspect-[4/5]"}`;
+  const mediaClass = `w-full object-cover ${compact ? "aspect-square" : "aspect-[4/5]"} ${
+    mirrored ? "scale-x-[-1]" : ""
+  }`;
 
   const inner = (
     <div

@@ -2,32 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { RefreshCw, Square, X } from "lucide-react";
-import { createMirroredCaptureStream } from "@/lib/mirrorVideoStream";
-
-// Vercel Functions hard-cap the request body at 4.5MB, and base64 inflates
-// binary size by ~1.33x, so raw output must stay well under that. At these
-// numbers, 8s tops out around (2.2 + 0.096) Mbps * 8s / 8 ≈ 2.3MB raw, i.e.
-// ~3.1MB base64 — comfortable headroom below the ~3.3MB raw / 4.4MB base64
-// ceiling enforced server-side (see MAX_VIDEO_CHARS in api/photos/route.ts)
-// even if a busy, high-motion scene pushes the encoder above its target.
-const MAX_SECONDS = 8;
-const VIDEO_BITRATE = 2_200_000; // ~2.2 Mbps — the previous 1.2 Mbps looked visibly soft/blocky
-const AUDIO_BITRATE = 96_000;
-
-function pickMimeType(): string {
-  const candidates = [
-    "video/mp4", // Safari/iOS 14.5+
-    "video/webm;codecs=vp9,opus",
-    "video/webm;codecs=vp8,opus",
-    "video/webm",
-  ];
-  for (const type of candidates) {
-    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type)) {
-      return type;
-    }
-  }
-  return "";
-}
+import {
+  AUDIO_BITRATE,
+  MAX_VIDEO_BYTES,
+  pickRecorderMimeType,
+  VIDEO_BITRATE,
+  VIDEO_MAX_SECONDS,
+  videoCaptureConstraints,
+} from "@/lib/cameraVideo";
 
 /**
  * Short in-app video capture (max 8s), mirroring CameraCapture's UX: same
@@ -49,7 +31,6 @@ export default function VideoRecorder({
   const chunksRef = useRef<Blob[]>([]);
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const mirrorStopRef = useRef<(() => void) | null>(null);
 
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
   const [ready, setReady] = useState(false);
@@ -67,7 +48,7 @@ export default function VideoRecorder({
       streamRef.current?.getTracks().forEach((t) => t.stop());
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          video: videoCaptureConstraints(facingMode),
           audio: true,
         });
         if (cancelled) {
@@ -92,8 +73,6 @@ export default function VideoRecorder({
     start();
     return () => {
       cancelled = true;
-      mirrorStopRef.current?.();
-      mirrorStopRef.current = null;
       stopStream();
       clearTimers();
     };
@@ -113,16 +92,9 @@ export default function VideoRecorder({
 
   function startRecording() {
     const stream = streamRef.current;
-    const video = videoRef.current;
-    if (!stream || !video || !ready || recording) return;
-    const mimeType = pickMimeType();
-    let recordStream = stream;
-    if (facingMode === "user") {
-      const mirrored = createMirroredCaptureStream(video, stream);
-      recordStream = mirrored.stream;
-      mirrorStopRef.current = mirrored.stop;
-    }
-    const recorder = new MediaRecorder(recordStream, {
+    if (!stream || !ready || recording) return;
+    const mimeType = pickRecorderMimeType();
+    const recorder = new MediaRecorder(stream, {
       ...(mimeType ? { mimeType } : {}),
       videoBitsPerSecond: VIDEO_BITRATE,
       audioBitsPerSecond: AUDIO_BITRATE,
@@ -131,18 +103,14 @@ export default function VideoRecorder({
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
-    recorder.onstop = () => {
-      mirrorStopRef.current?.();
-      mirrorStopRef.current = null;
-      finish(mimeType || recorder.mimeType || "video/webm");
-    };
+    recorder.onstop = () => finish(mimeType || recorder.mimeType || "video/mp4");
     recorderRef.current = recorder;
     recorder.start();
     setRecording(true);
     setElapsed(0);
 
     tickRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
-    stopTimerRef.current = setTimeout(stopRecording, MAX_SECONDS * 1000);
+    stopTimerRef.current = setTimeout(stopRecording, VIDEO_MAX_SECONDS * 1000);
   }
 
   function stopRecording() {
@@ -155,9 +123,19 @@ export default function VideoRecorder({
   }
 
   function finish(mimeType: string) {
-    const blob = new Blob(chunksRef.current, { type: mimeType });
+    const type = mimeType.split(";")[0] || "video/mp4";
+    const blob = new Blob(chunksRef.current, { type });
     chunksRef.current = [];
     stopStream();
+    if (blob.size < 500 || blob.size > MAX_VIDEO_BYTES) {
+      setProcessing(false);
+      setError(
+        blob.size > MAX_VIDEO_BYTES
+          ? "Klippet blev för stort — spela in ett kortare."
+          : "Kunde inte spara videon, testa igen."
+      );
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       setProcessing(false);
@@ -172,8 +150,6 @@ export default function VideoRecorder({
 
   function close() {
     clearTimers();
-    mirrorStopRef.current?.();
-    mirrorStopRef.current = null;
     stopStream();
     onClose();
   }
@@ -191,7 +167,7 @@ export default function VideoRecorder({
         {recording && (
           <span className="flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-1.5 text-sm font-medium text-white backdrop-blur">
             <span className="h-2 w-2 animate-pulse rounded-full bg-danger" />
-            {elapsed}s / {MAX_SECONDS}s
+            {elapsed}s / {VIDEO_MAX_SECONDS}s
           </span>
         )}
         <button

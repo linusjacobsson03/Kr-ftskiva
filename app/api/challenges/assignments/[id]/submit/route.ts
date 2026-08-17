@@ -2,9 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getOne, run, AssignmentRow, ChallengeRow } from "@/lib/db";
 import { apiError } from "@/lib/apiError";
-
-// Same real ceiling as app/api/photos/route.ts — see the comment there.
-const MAX_IMAGE_CHARS = 4_400_000; // ~3.3MB binary
+import { readUploadedMedia } from "@/lib/readUploadedMedia";
 
 export async function POST(
   request: Request,
@@ -34,7 +32,6 @@ export async function POST(
     }
 
     const now = new Date();
-    // Stored via sqlite's datetime('now', ...) as UTC "YYYY-MM-DD HH:MM:SS".
     const deadline = new Date(assignment.deadline.replace(" ", "T") + "Z");
     if (now > deadline) {
       await run("UPDATE challenge_assignments SET status = 'expired' WHERE id = ?", [
@@ -43,25 +40,16 @@ export async function POST(
       return NextResponse.json({ error: "Tiden är tyvärr ute!" }, { status: 410 });
     }
 
-    let body: { imageData?: string };
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ error: "Ogiltig förfrågan." }, { status: 400 });
-    }
-    const imageData = (body.imageData ?? "").toString();
-    const isImage = imageData.startsWith("data:image/");
-    const isVideo = imageData.startsWith("data:video/");
-    if (!isImage && !isVideo) {
+    const media = await readUploadedMedia(request);
+    if (!media.ok) {
       return NextResponse.json(
-        { error: "Bild- eller videobevis krävs för att klara utmaningen." },
-        { status: 400 }
-      );
-    }
-    if (imageData.length > MAX_IMAGE_CHARS) {
-      return NextResponse.json(
-        { error: isVideo ? "Videon är för stor, spela in ett kortare klipp." : "Bilden är för stor." },
-        { status: 413 }
+        {
+          error:
+            media.error === "Ingen bild eller video hittades."
+              ? "Bild- eller videobevis krävs för att klara utmaningen."
+              : media.error,
+        },
+        { status: media.status }
       );
     }
 
@@ -74,9 +62,10 @@ export async function POST(
 
     await run(
       `UPDATE challenge_assignments
-       SET status = 'completed', photo_data = ?, completed_at = datetime('now'), points_awarded = ?
+       SET status = 'completed', photo_data = ?, completed_at = datetime('now'),
+           points_awarded = ?, is_mirrored = ?
        WHERE id = ?`,
-      [imageData, challenge.points, assignment.id]
+      [media.imageData, challenge.points, media.mirrored ? 1 : 0, assignment.id]
     );
 
     return NextResponse.json({ ok: true, pointsAwarded: challenge.points });

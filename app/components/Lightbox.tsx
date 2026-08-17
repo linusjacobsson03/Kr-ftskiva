@@ -13,6 +13,7 @@ export interface LightboxItem {
   /** Challenge evidence in album */
   isChallenge?: boolean;
   points?: number;
+  mirrored?: boolean;
 }
 
 export default function Lightbox({
@@ -165,7 +166,7 @@ export default function Lightbox({
         style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
       >
         {items.map((slide) => {
-          const isVideo = slide.url.startsWith("data:video/");
+          const isVideo = slide.url.startsWith("data:video/") || slide.url.startsWith("blob:");
           return (
             <div
               key={slide.id}
@@ -183,7 +184,9 @@ export default function Lightbox({
                     src={slide.url}
                     controls
                     playsInline
-                    className="max-h-[min(88dvh,100%)] max-w-full rounded-[1.75rem] object-contain sm:rounded-[2rem]"
+                    className={`max-h-[min(88dvh,100%)] max-w-full rounded-[1.75rem] object-contain sm:rounded-[2rem] ${
+                      slide.mirrored ? "scale-x-[-1]" : ""
+                    }`}
                   />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element

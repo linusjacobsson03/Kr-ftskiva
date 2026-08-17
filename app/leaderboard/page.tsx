@@ -105,6 +105,7 @@ function LeaderboardContent() {
           displayName: s.display_name,
           isChallenge: true,
           points: s.points_awarded,
+          mirrored: Boolean(s.is_mirrored),
         })),
     [subs]
   );
@@ -163,6 +164,7 @@ function LeaderboardContent() {
                       photoUrl={s.photo_data}
                       title={s.title}
                       points={s.points_awarded}
+                      mirrored={Boolean(s.is_mirrored)}
                       onClick={() => {
                         if (lbIndex >= 0) setLightboxIndex(lbIndex);
                       }}
