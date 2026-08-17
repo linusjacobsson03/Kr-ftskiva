@@ -16,18 +16,25 @@ export type PushStatus =
   | "subscribed"
   | "not-subscribed";
 
-/** Detects standalone / installed-to-home-screen mode across Android + iOS Safari. */
+/** Detects standalone / installed-to-home-screen mode across Android + iOS Safari.
+ *  `null` until the first client check, so we don't flash the wrong prompt. */
 export function useIsStandalone() {
-  const [standalone, setStandalone] = useState(false);
+  const [standalone, setStandalone] = useState<boolean | null>(null);
   useEffect(() => {
     const nav = navigator as Navigator & { standalone?: boolean };
-    const mq = window.matchMedia("(display-mode: standalone)");
+    const modes = [
+      window.matchMedia("(display-mode: standalone)"),
+      window.matchMedia("(display-mode: fullscreen)"),
+      window.matchMedia("(display-mode: minimal-ui)"),
+    ];
     const update = () => {
-      setStandalone(mq.matches || nav.standalone === true);
+      setStandalone(
+        nav.standalone === true || modes.some((mq) => mq.matches)
+      );
     };
     update();
-    mq.addEventListener?.("change", update);
-    return () => mq.removeEventListener?.("change", update);
+    modes.forEach((mq) => mq.addEventListener?.("change", update));
+    return () => modes.forEach((mq) => mq.removeEventListener?.("change", update));
   }, []);
   return standalone;
 }

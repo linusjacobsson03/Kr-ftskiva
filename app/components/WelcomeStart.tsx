@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import { MoreVertical, Share, Smartphone } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Bell, MoreVertical, Share, Smartphone } from "lucide-react";
 import { useAuth } from "../providers";
-import { useIsStandalone } from "./usePushSubscription";
+import { useIsStandalone, usePushSubscription } from "./usePushSubscription";
 
 const INSTALL_KEY_PREFIX = "kraftskiva-welcome-v1";
 
@@ -33,34 +33,57 @@ function Step({ n, children }: { n: number; children: ReactNode }) {
   );
 }
 
-/** First-time browser tip for adding to home screen. Never shown in the installed app. */
+/** First-time browser tip for adding to home screen, then a push prompt in the installed app. */
 export default function WelcomeStart() {
   const { user, loading } = useAuth();
   const standalone = useIsStandalone();
+  const { status, busy, subscribe, lastError } = usePushSubscription();
   const [hydrated, setHydrated] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"install" | "push" | null>(null);
   const [platform, setPlatform] = useState<"ios" | "android" | "other">("other");
+  const [pushDone, setPushDone] = useState(false);
+  const [testMsg, setTestMsg] = useState<string | null>(null);
+  const [skippedPushThisVisit, setSkippedPushThisVisit] = useState(false);
+  const activatingRef = useRef(false);
 
   useEffect(() => setHydrated(true), []);
 
   useEffect(() => {
-    if (!hydrated || loading || !user || standalone) {
-      setOpen(false);
+    if (!hydrated || loading || !user || standalone === null) {
+      setMode(null);
+      return;
+    }
+    if (standalone) {
+      if (pushDone || activatingRef.current) {
+        setMode("push");
+        return;
+      }
+      // Already on: never ask again. Skipped this visit: wait until next app open.
+      if (status === "subscribed" || skippedPushThisVisit) {
+        setMode(null);
+        return;
+      }
+      setMode("push");
       return;
     }
     try {
       if (localStorage.getItem(installKey(user.id))) {
-        setOpen(false);
+        setMode(null);
         return;
       }
     } catch {
       // Private mode — still show once.
     }
     setPlatform(detectPlatform());
-    setOpen(true);
-  }, [hydrated, loading, user, standalone]);
+    setMode("install");
+  }, [hydrated, loading, user, standalone, status, pushDone, skippedPushThisVisit]);
 
-  function dismiss() {
+  function skipPushThisVisit() {
+    setSkippedPushThisVisit(true);
+    setMode(null);
+  }
+
+  function dismissInstall() {
     if (user) {
       try {
         localStorage.setItem(installKey(user.id), "1");
@@ -68,10 +91,99 @@ export default function WelcomeStart() {
         // ignore
       }
     }
-    setOpen(false);
+    setMode(null);
   }
 
-  if (!open || !user) return null;
+  async function onEnablePush() {
+    activatingRef.current = true;
+    const ok = await subscribe();
+    if (!ok) {
+      activatingRef.current = false;
+      return;
+    }
+    setPushDone(true);
+    try {
+      const res = await fetch("/api/push/test", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      setTestMsg(res.ok ? "Testnotis skickad." : data.error || "Notiser är på.");
+    } catch {
+      setTestMsg("Notiser är på.");
+    }
+    window.setTimeout(() => setMode(null), 2200);
+  }
+
+  if (!user || !mode) return null;
+
+  if (mode === "push") {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-end justify-center bg-ink/45 p-4 sm:items-center"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="push-title"
+        onClick={pushDone ? undefined : skipPushThisVisit}
+      >
+        <div
+          className="w-full max-w-md rounded-[1.4rem] bg-white p-5 shadow-[0_24px_60px_-20px_rgba(28,23,18,0.45)]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="section-label">Lilla Brattön</p>
+          {pushDone ? (
+            <>
+              <div className="mt-4 flex justify-center">
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-success/15 text-success">
+                  <Bell size={22} strokeWidth={1.75} />
+                </span>
+              </div>
+              <h2
+                id="push-title"
+                className="font-display mt-3 text-center text-[1.5rem] font-medium tracking-tight text-cream"
+              >
+                Notiser är på
+              </h2>
+              <p className="mt-1 text-center text-sm text-muted">{testMsg}</p>
+            </>
+          ) : (
+            <>
+              <h2
+                id="push-title"
+                className="font-display mt-1 text-[1.7rem] font-medium tracking-tight text-cream"
+              >
+                Hej, {user.firstName}!
+              </h2>
+              <p className="mt-1 text-sm text-muted">
+                Slå på notiser så du inte missar när en ny utmaning ramlar in.
+              </p>
+              {status === "denied" ? (
+                <p className="mt-3 rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">
+                  Notiser är avstängda. Öppna Inställningar → Lilla Brattön och slå på
+                  notiser, öppna sen appen igen.
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void onEnablePush()}
+                  disabled={busy}
+                  className="btn-primary mt-5 w-full"
+                >
+                  <Bell size={16} strokeWidth={1.75} />
+                  {busy ? "Väntar…" : "Slå på notiser"}
+                </button>
+              )}
+              {lastError && <p className="mt-2 text-sm text-danger">{lastError}</p>}
+              <button
+                type="button"
+                onClick={skipPushThisVisit}
+                className="btn-ghost mt-3 w-full justify-center"
+              >
+                Inte nu
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -142,7 +254,7 @@ export default function WelcomeStart() {
             </ol>
           </div>
         </div>
-        <button type="button" onClick={dismiss} className="btn-primary mt-5 w-full">
+        <button type="button" onClick={dismissInstall} className="btn-primary mt-5 w-full">
           <Smartphone size={15} strokeWidth={1.75} />
           Jag har lagt till den
         </button>

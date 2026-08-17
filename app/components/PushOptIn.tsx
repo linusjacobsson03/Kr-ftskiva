@@ -37,7 +37,9 @@ export default function PushOptIn() {
     window.setTimeout(() => setJustActivated(false), 5000);
   }
 
-  if (isIos && !standalone && status !== "subscribed") {
+  if (standalone === null) return null;
+
+  if (isIos && standalone === false && status !== "subscribed") {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-accent/25 bg-accent/[0.06] px-3 py-2 text-xs text-muted">
         <Share size={14} strokeWidth={1.75} className="shrink-0 text-accent-strong" />
@@ -60,7 +62,7 @@ export default function PushOptIn() {
     );
   }
 
-  if (status === "subscribed" || status === "unknown") return null;
+  if (status === "subscribed") return null;
 
   if (status === "denied") {
     return (
@@ -70,7 +72,7 @@ export default function PushOptIn() {
     );
   }
 
-  if (status === "unsupported") {
+  if (status === "unsupported" && standalone !== true) {
     return isIos ? (
       <p className="text-xs text-muted">Öppna från hemskärmen för att få notiser.</p>
     ) : null;
