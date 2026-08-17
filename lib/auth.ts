@@ -131,7 +131,7 @@ export function cleanNamePart(raw: string): string {
  * separate from the per-user session above.
  */
 export const ADMIN_SESSION_COOKIE = "kraftskiva_admin_session";
-const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // a party weekend and then some
+const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 8;
 
 /**
  * Falls back to a random passcode stashed in the DB (like the session
@@ -198,5 +198,4 @@ export const adminSessionCookieOptions = {
   sameSite: "lax" as const,
   secure: process.env.NODE_ENV === "production",
   path: "/",
-  maxAge: ADMIN_SESSION_MAX_AGE_SECONDS,
 };

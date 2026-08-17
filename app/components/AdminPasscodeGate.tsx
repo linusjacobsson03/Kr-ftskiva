@@ -8,7 +8,7 @@ import { Delete } from "lucide-react";
  * (change it in env to change the PIN).
  */
 export default function AdminPasscodeGate({ children }: { children: React.ReactNode }) {
-  const [unlocked, setUnlocked] = useState<boolean | null>(null);
+  const [unlocked, setUnlocked] = useState(false);
   const [passcodeConfigured, setPasscodeConfigured] = useState<boolean | null>(null);
   const [length, setLength] = useState(4);
   const [digits, setDigits] = useState("");
@@ -21,12 +21,13 @@ export default function AdminPasscodeGate({ children }: { children: React.ReactN
     fetch("/api/admin/session", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
-        setUnlocked(!!data.unlocked);
         setPasscodeConfigured(!!data.passcodeConfigured);
         const n = Number(data.passcodeLength);
         if (n >= 4 && n <= 8) setLength(n);
       })
-      .catch(() => setUnlocked(false));
+      .catch(() => {
+        setPasscodeConfigured(null);
+      });
   }, []);
 
   const tryUnlock = useCallback(async (code: string) => {
@@ -106,14 +107,6 @@ export default function AdminPasscodeGate({ children }: { children: React.ReactN
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [popDigit, pushDigit, unlocked]);
-
-  if (unlocked === null) {
-    return (
-      <div className="flex flex-1 items-center justify-center py-24">
-        <div className="h-8 w-8 animate-pulse rounded-full bg-accent/40" />
-      </div>
-    );
-  }
 
   if (!unlocked) {
     const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"] as const;

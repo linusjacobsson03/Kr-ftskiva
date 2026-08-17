@@ -28,7 +28,7 @@ export async function POST(_request: Request, ctx: Ctx) {
     }
 
     const result = await sendPushToUser(id, {
-      title: "Testnotis från Kräftskiva",
+      title: "Testnotis från Lilla Brattön",
       body: "Funkar det här syns notiser på din hemskärmsapp.",
       url: "/challenges",
       tag: "kraftskiva-test",

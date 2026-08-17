@@ -19,7 +19,7 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     (async () => {
       let data = {
-        title: "Kräftskiva",
+        title: "Lilla Brattön",
         body: "Något nytt har hänt!",
         url: "/challenges",
         tag: "kraftskiva",
