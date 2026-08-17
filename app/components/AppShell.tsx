@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Camera, Trophy, UtensilsCrossed } from "lucide-react";
+import WelcomeStart from "./WelcomeStart";
 
 const TABS = [
   { href: "/challenges", label: "Utmaningar", icon: UtensilsCrossed },
@@ -30,6 +31,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       >
         {children}
       </main>
+
+      {pathname !== "/admin" && !pathname.startsWith("/admin/") && <WelcomeStart />}
 
       <nav
         className="fixed inset-x-0 bottom-0 z-30 border-t border-black/[0.06] bg-white/92 backdrop-blur-xl [transform:translateZ(0)]"

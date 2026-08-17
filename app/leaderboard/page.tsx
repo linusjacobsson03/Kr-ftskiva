@@ -179,7 +179,6 @@ function LeaderboardContent() {
                     className="card flex w-full items-center justify-between gap-3 px-3.5 py-2.5"
                   >
                     <p className="min-w-0 truncate text-sm font-medium text-cream">
-                      {s.emoji ? `${s.emoji} ` : ""}
                       {s.title}
                     </p>
                     <span className="font-display shrink-0 tabular text-base font-medium text-accent-strong">

@@ -22,14 +22,14 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Kräftskiva",
-  description: "Appen för kvällens kräftskiva – utmaningar, foton och topplista!",
+  title: "Lilla Brattön",
+  description: "Du är inbjuden till en personalaktivitet på Lilla Brattön.",
   manifest: "/manifest.webmanifest",
-  applicationName: "Kräftskiva",
+  applicationName: "Lilla Brattön",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Kräftskiva",
+    title: "Lilla Brattön",
   },
   icons: {
     icon: [
@@ -37,6 +37,27 @@ export const metadata: Metadata = {
       { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
     ],
     apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  openGraph: {
+    title: "Lilla Brattön",
+    description: "Du är inbjuden till en personalaktivitet på Lilla Brattön.",
+    siteName: "Lilla Brattön",
+    locale: "sv_SE",
+    type: "website",
+    images: [
+      {
+        url: "/og-share.png",
+        width: 1200,
+        height: 630,
+        alt: "Lilla Brattön",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Lilla Brattön",
+    description: "Du är inbjuden till en personalaktivitet på Lilla Brattön.",
+    images: ["/og-share.png"],
   },
 };
 

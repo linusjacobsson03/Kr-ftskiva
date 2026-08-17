@@ -54,7 +54,7 @@ function HomeContent() {
         <div className="mx-auto max-w-xl space-y-6 px-4 py-7">
           <div>
             <h1 className="font-display text-[1.75rem] font-medium tracking-tight text-cream">
-              {user ? `Hej, ${user.firstName}` : "Kräftskiva"}
+              {user ? `Hej, ${user.firstName}` : "Lilla Brattön"}
             </h1>
             <p className="mt-0.5 font-display italic text-muted">
               Välkommen till kvällens kräftskiva

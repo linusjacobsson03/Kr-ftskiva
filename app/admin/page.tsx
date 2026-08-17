@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, Check, ChevronDown, Clock, Copy, Lock, MessageSquare, PartyPopper, Send, Sparkles, Trash2, UserPlus, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Bell, Check, ChevronDown, Clock, Copy, ListPlus, Lock, MessageSquare, PartyPopper, Send, Sparkles, Trash2, UserPlus, X } from "lucide-react";
 import AdminPasscodeGate from "../components/AdminPasscodeGate";
 import type { ChallengeTemplate, ScheduleEntry, UserOption } from "@/lib/types";
 
@@ -16,41 +16,164 @@ function difficultyOf(points: number): { label: string; className: string } {
   return { label: "Vågad", className: "text-[color:var(--color-danger)]" };
 }
 
-/** Fallback "HH:MM" when a challenge has no suggested_time — later = harder. */
-function defaultSuggestedTime(points: number): string {
-  if (points <= 1) return "17:30";
-  if (points <= 2) return "19:00";
-  if (points <= 3) return "20:30";
-  return "22:00";
+function startOfLocalDay(d = new Date()): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
 }
 
-function effectiveSuggestedTime(challenge: ChallengeTemplate): string {
-  return challenge.suggested_time || defaultSuggestedTime(challenge.points);
+function dayKeyFromDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
-/** Quick-pick slots for a typical kräftskiva evening. */
-const PARTY_TIME_SLOTS = [
-  "16:30",
-  "17:00",
-  "17:30",
-  "18:00",
-  "18:30",
-  "19:00",
-  "19:30",
-  "20:00",
-  "20:30",
-  "21:00",
-  "21:30",
-  "22:00",
-  "22:30",
-] as const;
+function parseDayKey(key: string): Date {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+}
 
-function buildSendAtIsoFromTime(hhmm: string): string | null {
+function isoDayKey(iso: string): string {
+  return dayKeyFromDate(new Date(iso));
+}
+
+function upcomingDays(count = 5, from = startOfLocalDay()) {
+  const today = startOfLocalDay(from);
+  return Array.from({ length: count }, (_, offset) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() + offset);
+    const weekday = date
+      .toLocaleDateString("sv-SE", { weekday: "long" })
+      .replace(/^./, (c) => c.toUpperCase());
+    const label = offset === 0 ? "Idag" : offset === 1 ? "Imorgon" : weekday;
+    return {
+      offset,
+      key: dayKeyFromDate(date),
+      label,
+      dateLabel: `${date.getDate()}/${date.getMonth() + 1}`,
+    };
+  });
+}
+
+function msUntilNextLocalMidnight(now = new Date()) {
+  const next = startOfLocalDay(now);
+  next.setDate(next.getDate() + 1);
+  return Math.max(250, next.getTime() - now.getTime() + 250);
+}
+
+/** Live calendar day — rolls over at midnight even if the tab stays open. */
+function useTodayKey() {
+  const [todayKey, setTodayKey] = useState(() => dayKeyFromDate(new Date()));
+
+  useEffect(() => {
+    function sync() {
+      setTodayKey(dayKeyFromDate(new Date()));
+    }
+
+    let timeout: ReturnType<typeof setTimeout>;
+    function scheduleMidnight() {
+      timeout = setTimeout(() => {
+        sync();
+        scheduleMidnight();
+      }, msUntilNextLocalMidnight());
+    }
+
+    scheduleMidnight();
+    const interval = setInterval(sync, 60_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") sync();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", sync);
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", sync);
+    };
+  }, []);
+
+  return todayKey;
+}
+
+function DayPicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (key: string) => void;
+}) {
+  const todayKey = useTodayKey();
+  const days = useMemo(
+    () => upcomingDays(5, parseDayKey(todayKey)),
+    [todayKey]
+  );
+
+  useEffect(() => {
+    if (!days.some((d) => d.key === value)) {
+      onChange(todayKey);
+    }
+  }, [days, onChange, todayKey, value]);
+
+  return (
+    <div className="grid grid-cols-5 gap-1">
+      {days.map((d) => {
+        const active = value === d.key;
+        return (
+          <button
+            key={d.key}
+            type="button"
+            onClick={() => onChange(d.key)}
+            className={`flex min-w-0 flex-col items-center rounded-2xl px-1 py-2 text-center transition ${
+              active
+                ? "bg-accent text-ink"
+                : "border border-black/10 bg-white text-cream hover:bg-black/[0.03]"
+            }`}
+          >
+            <span className="w-full truncate text-[0.65rem] font-semibold leading-tight">
+              {d.label}
+            </span>
+            <span
+              className={`mt-0.5 text-[0.65rem] tabular ${
+                active ? "text-ink/70" : "text-muted"
+              }`}
+            >
+              {d.dateLabel}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function buildSendAtIsoFromTime(hhmm: string, day = dayKeyFromDate(new Date())): string | null {
   if (!/^\d{2}:\d{2}$/.test(hhmm)) return null;
   const [h, m] = hhmm.split(":").map(Number);
-  const d = new Date();
+  const d = parseDayKey(day);
   d.setHours(h, m, 0, 0);
   return d.toISOString();
+}
+
+const SLIDER_START_MIN = 10 * 60;
+const SLIDER_END_MIN = 23 * 60;
+const SLIDER_STEP_MIN = 1;
+
+function minutesToHhmm(total: number): string {
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function hhmmToMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function isoToMinutes(iso: string): number {
+  const d = new Date(iso);
+  return d.getHours() * 60 + d.getMinutes();
 }
 
 function formatDateTime(iso: string): string {
@@ -117,10 +240,7 @@ function PendingChallengeRow({
     <div className="card space-y-3 p-4">
       <div>
         <div className="flex items-center gap-2">
-          <p className="font-medium text-cream">
-            <span className="mr-1.5">{challenge.emoji}</span>
-            {challenge.title}
-          </p>
+          <p className="font-medium text-cream">{challenge.title}</p>
           <span className={`chip ${difficulty.className}`}>{difficulty.label}</span>
         </div>
         {challenge.description && (
@@ -271,8 +391,8 @@ function formatClock(iso: string): string {
   });
 }
 
-const TIMELINE_START_H = 16;
-const TIMELINE_END_H = 22;
+const TIMELINE_START_H = 10;
+const TIMELINE_END_H = 23;
 const TIMELINE_HOURS = TIMELINE_END_H - TIMELINE_START_H;
 
 function hourOffset(date: Date): number {
@@ -281,20 +401,29 @@ function hourOffset(date: Date): number {
 
 function EveningTimeline({
   entries,
+  users,
+  selectedDay,
   onCancel,
+  onSaved,
 }: {
   entries: ScheduleEntry[];
+  users: UserOption[];
+  selectedDay: string;
   onCancel: (id: number) => void;
+  onSaved: () => void;
 }) {
+  const [editingId, setEditingId] = useState<number | null>(null);
   const visible = entries
     .filter((e) => e.status === "scheduled" || e.status === "sending" || e.status === "sent")
+    .filter((e) => isoDayKey(e.send_at) === selectedDay)
     .slice()
     .sort((a, b) => new Date(a.send_at).getTime() - new Date(b.send_at).getTime());
 
   const now = new Date();
   const nowH = hourOffset(now);
+  const isToday = selectedDay === dayKeyFromDate(now);
   const showNow =
-    nowH >= TIMELINE_START_H && nowH <= TIMELINE_END_H && visible.length > 0;
+    isToday && nowH >= TIMELINE_START_H && nowH <= TIMELINE_END_H && visible.length > 0;
 
   const hourMarks = Array.from({ length: TIMELINE_HOURS + 1 }, (_, i) => TIMELINE_START_H + i);
 
@@ -315,29 +444,24 @@ function EveningTimeline({
   }
 
   return (
-    <div className="card space-y-4 p-4">
+    <div className="card max-w-full space-y-3 overflow-x-hidden p-3">
       <div>
         <p className="section-label">Kvällens tidslinje</p>
         <p className="mt-1 text-sm text-muted">
-          {TIMELINE_START_H}:00–{TIMELINE_END_H}:00 — vilka utmaningar som skickas (eller redan
-          skickats) och till vem.
+          {TIMELINE_START_H}:00–{TIMELINE_END_H}:00 — tryck på en utmaning för att ändra.
         </p>
       </div>
 
-      <div className="relative space-y-0 pl-1">
+      <div className="relative min-w-0 space-y-0 overflow-x-hidden pl-1">
         {hourMarks.slice(0, -1).map((h) => {
           const items = byHour.get(h) ?? [];
           const nowInBucket = showNow && Math.floor(nowH) === h;
           return (
-            <div key={h} className="relative border-l border-black/10 pl-4">
-              <div className="absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full border-2 border-black/15 bg-white" />
-              <div className="mb-2 flex items-baseline justify-between gap-2">
-                <p className="font-display text-sm font-semibold tabular text-muted">
+            <div key={h} className="relative min-w-0 border-l border-black/10 pl-3">
+              <div className="absolute -left-[4px] top-1 h-2 w-2 rounded-full border-2 border-black/15 bg-white" />
+              <div className="mb-1.5 flex min-w-0 items-baseline justify-between gap-2">
+                <p className="font-display shrink-0 text-xs font-semibold tabular text-muted">
                   {String(h).padStart(2, "0")}:00
-                  <span className="font-sans text-xs font-normal text-muted/70">
-                    {" "}
-                    – {String(h + 1).padStart(2, "0")}:00
-                  </span>
                 </p>
                 {nowInBucket && (
                   <span className="rounded-full bg-danger/10 px-2 py-0.5 text-[0.65rem] font-semibold text-danger">
@@ -347,53 +471,67 @@ function EveningTimeline({
               </div>
 
               {items.length === 0 ? (
-                <p className="mb-4 text-xs text-muted/60">—</p>
+                <p className="mb-3 text-[0.65rem] text-muted/50">—</p>
               ) : (
-                <div className="mb-4 space-y-2">
+                <div className="mb-3 min-w-0 space-y-1">
                   {items.map((entry) => {
                     const sent = entry.status === "sent";
                     const sending = entry.status === "sending";
+                    const open = editingId === entry.id;
                     return (
-                      <div
-                        key={entry.id}
-                        className={`rounded-2xl border px-3 py-2.5 ${
-                          sent
-                            ? "border-success/25 bg-success/[0.08]"
-                            : sending
-                              ? "border-accent/40 bg-accent/15"
-                              : "border-black/10 bg-white"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="font-display text-base font-semibold tabular text-accent-strong">
+                      <div key={entry.id} className="min-w-0">
+                        <div
+                          className={`flex min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-xl border px-2 py-1.5 ${
+                            sent
+                              ? "border-success/25 bg-success/[0.08]"
+                              : sending
+                                ? "border-accent/40 bg-accent/15"
+                                : open
+                                  ? "border-accent/50 bg-accent/10"
+                                  : "border-black/10 bg-white"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setEditingId(open ? null : entry.id)}
+                            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                          >
+                            <span className="font-display w-10 shrink-0 text-xs font-semibold tabular text-accent-strong">
                               {formatClock(entry.send_at)}
-                            </p>
-                            <p className="truncate text-sm font-medium text-cream">
-                              <span className="mr-1">{entry.challenge_emoji}</span>
-                              {entry.challenge_title}
-                            </p>
-                            <p className="mt-0.5 text-xs text-muted">
-                              {sent
-                                ? "Skickad till"
-                                : sending
-                                  ? "Skickar till"
-                                  : "Skickas till"}{" "}
-                              <span className="font-medium text-cream">{targetLabel(entry)}</span>
-                            </p>
-                          </div>
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-xs font-medium text-cream">
+                                {entry.challenge_title}
+                              </p>
+                              <p className="truncate text-[0.65rem] text-muted">
+                                {sent ? "Skickad" : sending ? "Skickar" : "Till"}{" "}
+                                {targetLabel(entry)}
+                              </p>
+                            </div>
+                          </button>
                           {entry.status === "scheduled" && (
                             <button
                               type="button"
                               onClick={() => onCancel(entry.id)}
-                              className="shrink-0 rounded-full p-1.5 text-muted transition hover:bg-black/[0.05] hover:text-danger"
+                              className="shrink-0 rounded-full p-1 text-muted transition hover:bg-black/[0.05] hover:text-danger"
                               aria-label="Avboka"
                               title="Avboka"
                             >
-                              <X size={14} strokeWidth={1.75} />
+                              <X size={12} strokeWidth={1.75} />
                             </button>
                           )}
                         </div>
+                        {open && (
+                          <ScheduleEntryEditor
+                            entry={entry}
+                            users={users}
+                            onClose={() => setEditingId(null)}
+                            onSaved={() => {
+                              setEditingId(null);
+                              onSaved();
+                            }}
+                          />
+                        )}
                       </div>
                     );
                   })}
@@ -402,9 +540,9 @@ function EveningTimeline({
             </div>
           );
         })}
-        <div className="relative border-l border-transparent pl-4">
-          <div className="absolute -left-[5px] top-1 h-2.5 w-2.5 rounded-full border-2 border-black/15 bg-white" />
-          <p className="font-display text-sm font-semibold tabular text-muted">
+        <div className="relative border-l border-transparent pl-3">
+          <div className="absolute -left-[4px] top-1 h-2 w-2 rounded-full border-2 border-black/15 bg-white" />
+          <p className="font-display text-xs font-semibold tabular text-muted">
             {String(TIMELINE_END_H).padStart(2, "0")}:00
           </p>
         </div>
@@ -412,7 +550,7 @@ function EveningTimeline({
 
       {visible.length === 0 && (
         <p className="text-center text-sm text-muted">
-          Inget på tidslinjen ännu — planera en godkänd utmaning nedan, eller skapa en ny med tid.
+          Inget schemalagt den här dagen.
         </p>
       )}
 
@@ -425,7 +563,7 @@ function EveningTimeline({
             <p key={e.id} className="text-sm text-cream">
               <span className="font-display tabular text-accent-strong">{formatClock(e.send_at)}</span>
               {" · "}
-              {e.challenge_emoji} {e.challenge_title}
+              {e.challenge_title}
               {" · "}
               {targetLabel(e)}
             </p>
@@ -436,141 +574,123 @@ function EveningTimeline({
   );
 }
 
-function PlanOntoTimeline({
-  challenges,
+function ScheduleEntryEditor({
+  entry,
   users,
-  onScheduled,
+  onClose,
+  onSaved,
 }: {
-  challenges: ChallengeTemplate[];
+  entry: ScheduleEntry;
   users: UserOption[];
-  onScheduled: () => void;
+  onClose: () => void;
+  onSaved: () => void;
 }) {
-  const [challengeId, setChallengeId] = useState<number | "">("");
-  const [recipients, setRecipients] = useState<Recipients>({
-    target: "random",
-    selectedUserIds: [],
-  });
-  const [sendTime, setSendTime] = useState("18:00");
+  const canSchedule = entry.status === "scheduled";
+  const [title, setTitle] = useState(entry.challenge_title);
+  const [minutes, setMinutes] = useState(() => isoToMinutes(entry.send_at));
+  const [day, setDay] = useState(() => isoDayKey(entry.send_at));
+  const [recipients, setRecipients] = useState<Recipients>(() =>
+    entry.target_type === "user" && entry.target_user_id
+      ? { target: "user", selectedUserIds: [entry.target_user_id] }
+      : { target: entry.target_type === "all" ? "all" : "random", selectedUserIds: [] }
+  );
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const selected = challenges.find((c) => c.id === challengeId);
-
-  useEffect(() => {
-    if (selected) setSendTime(effectiveSuggestedTime(selected));
-  }, [selected]);
-
-  async function plan(e: React.FormEvent) {
+  async function save(e: React.FormEvent) {
     e.preventDefault();
-    setMsg(null);
-    setErr(null);
-    if (!challengeId) {
-      setErr("Välj en utmaning.");
+    setError(null);
+    if (!title.trim()) {
+      setError("Skriv en text.");
       return;
     }
-    if (!recipientsValid(recipients)) {
-      setErr("Välj minst en person.");
-      return;
-    }
-    const sendAtIso = buildSendAtIsoFromTime(sendTime);
-    if (!sendAtIso) {
-      setErr("Välj en tid.");
+    if (canSchedule && !recipientsValid(recipients)) {
+      setError("Välj minst en person.");
       return;
     }
     setBusy(true);
     try {
-      const res = await fetch(`/api/challenges/${challengeId}/schedule`, {
-        method: "POST",
+      const body: {
+        title: string;
+        sendAt?: string;
+        target?: Recipients["target"];
+        userIds?: number[];
+      } = { title: title.trim() };
+      if (canSchedule) {
+        body.sendAt = buildSendAtIsoFromTime(minutesToHhmm(minutes), day) ?? undefined;
+        body.target = recipients.target;
+        body.userIds = recipients.target === "user" ? recipients.selectedUserIds : undefined;
+      }
+      const res = await fetch(`/api/schedule/${entry.id}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sendAt: sendAtIso,
-          target: recipients.target,
-          userIds: recipients.target === "user" ? recipients.selectedUserIds : undefined,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) {
-        setErr(data.error || "Kunde inte schemalägga.");
+        setError(data.error || "Kunde inte spara.");
         return;
       }
-      setMsg(`Inlagd på tidslinjen kl ${sendTime}.`);
-      setChallengeId("");
-      setRecipients({ target: "random", selectedUserIds: [] });
-      onScheduled();
+      onSaved();
     } finally {
       setBusy(false);
     }
   }
 
-  if (challenges.length === 0) {
-    return (
-      <p className="text-sm text-muted">
-        Inga godkända utmaningar än — hämta och godkänn förslag under &quot;Godkänn utmaningar&quot;.
-      </p>
-    );
-  }
-
   return (
-    <form onSubmit={plan} className="card space-y-3 p-4">
-      <p className="section-label">Lägg på tidslinjen</p>
-      <p className="text-sm text-muted">
-        Välj en godkänd utmaning, mottagare och klockslag — den dyker upp på tidslinjen ovan.
-      </p>
+    <form onSubmit={save} className="mt-1 space-y-3 rounded-xl border border-black/10 bg-white p-3">
       <label className="block text-sm">
-        <span className="mb-1.5 block text-xs text-muted">Utmaning</span>
-        <select
-          className="input-field"
-          value={challengeId}
-          onChange={(e) => setChallengeId(e.target.value ? Number(e.target.value) : "")}
-          required
-        >
-          <option value="">Välj…</option>
-          {challenges.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.emoji} {c.title} ({effectiveSuggestedTime(c)})
-            </option>
-          ))}
-        </select>
-      </label>
-      <RecipientDropdown
-        users={users}
-        value={recipients}
-        onChange={setRecipients}
-        label="Mottagare"
-      />
-      <label className="block text-sm">
-        <span className="mb-1.5 block text-xs text-muted">Tid</span>
+        <span className="mb-1.5 block text-xs text-muted">Text</span>
         <input
-          type="time"
           className="input-field"
-          value={sendTime}
-          onChange={(e) => setSendTime(e.target.value)}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          maxLength={120}
           required
         />
       </label>
-      <div className="flex flex-wrap gap-1.5">
-        {PARTY_TIME_SLOTS.map((slot) => (
-          <button
-            key={slot}
-            type="button"
-            onClick={() => setSendTime(slot)}
-            className={`rounded-full px-2.5 py-1 text-[0.7rem] font-medium tabular transition ${
-              sendTime === slot
-                ? "bg-accent text-ink"
-                : "border border-black/10 text-muted hover:bg-black/[0.03]"
-            }`}
-          >
-            {slot}
-          </button>
-        ))}
+      {canSchedule ? (
+        <>
+          <div>
+            <span className="mb-1.5 block text-xs text-muted">Dag</span>
+            <DayPicker value={day} onChange={setDay} />
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs text-muted">Tid</span>
+              <span className="font-display text-base font-semibold tabular text-accent-strong">
+                {minutesToHhmm(minutes)}
+              </span>
+            </div>
+            <input
+              type="range"
+              className="time-slider"
+              min={SLIDER_START_MIN}
+              max={SLIDER_END_MIN}
+              step={SLIDER_STEP_MIN}
+              value={minutes}
+              onChange={(e) => setMinutes(Number(e.target.value))}
+            />
+          </div>
+          <RecipientDropdown
+            users={users}
+            value={recipients}
+            onChange={setRecipients}
+            label="Skicka till"
+          />
+        </>
+      ) : (
+        <p className="text-xs text-muted">Redan skickad — du kan bara ändra texten.</p>
+      )}
+      {error && <p className="text-sm text-danger">{error}</p>}
+      <div className="flex gap-2">
+        <button type="submit" disabled={busy} className="btn-primary flex-1 text-sm">
+          {busy ? "Sparar…" : "Spara"}
+        </button>
+        <button type="button" onClick={onClose} className="btn-secondary text-sm">
+          Stäng
+        </button>
       </div>
-      {err && <p className="text-sm text-danger">{err}</p>}
-      {msg && <p className="text-sm text-accent-strong">{msg}</p>}
-      <button type="submit" disabled={busy} className="btn-primary w-full text-sm">
-        <Clock size={14} strokeWidth={1.75} />
-        {busy ? "Lägger till…" : `Schemalägg ${sendTime}`}
-      </button>
     </form>
   );
 }
@@ -619,8 +739,8 @@ function PendingTab() {
         <p className="section-label">Utmaningsförslag</p>
         <p className="text-sm text-muted">
           Hämta ett gäng färdiga förslag i olika svårighetsgrader (Lätt → Vågad) och godkänn eller
-          avslå dem ett i taget. Godkända kan sedan läggas på tidslinjen under fliken{" "}
-          <strong>Utmaningar</strong>.
+          avslå dem ett i taget. Godkända kan sedan schemaläggas under fliken{" "}
+          <strong>Schema</strong>.
         </p>
         <button onClick={fetchSuggestions} disabled={fetching} className="btn-primary w-full">
           <Sparkles size={14} strokeWidth={1.75} />
@@ -645,48 +765,43 @@ function PendingTab() {
 }
 
 function ApprovedTab() {
-  const [challenges, setChallenges] = useState<ChallengeTemplate[]>([]);
-  const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
-  const [loading, setLoading] = useState(true);
   const [recipients, setRecipients] = useState<Recipients>({
     target: "random",
     selectedUserIds: [],
   });
   const [title, setTitle] = useState("");
-  // "HH:MM", blank = skicka direkt vid skapande. Bara en tidpunkt, inget
-  // datum — det här görs alltid samma kväll som festen, så dagens datum
-  // antas alltid (se buildSendAtIso).
+  // "HH:MM", blank = skicka direkt vid skapande. Datumet kommer från
+  // dagsväljaren (Idag / Imorgon / …).
   const [sendTime, setSendTime] = useState("");
+  const [sendDay, setSendDay] = useState(() => dayKeyFromDate(new Date()));
   const [points, setPoints] = useState(1);
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    const [chRes, schRes] = await Promise.all([
-      fetch("/api/challenges", { cache: "no-store" }),
-      fetch("/api/schedule", { cache: "no-store" }),
-    ]);
-    const chData = await chRes.json();
-    const schData = await schRes.json();
-    setChallenges(chData.challenges ?? []);
-    setSchedule(schData.schedule ?? []);
-    setLoading(false);
-  }, []);
+  const [showBulk, setShowBulk] = useState(false);
+  const [bulkText, setBulkText] = useState("");
+  const [bulkPoints, setBulkPoints] = useState(1);
+  const [bulkRecipients, setBulkRecipients] = useState<Recipients>({
+    target: "random",
+    selectedUserIds: [],
+  });
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkSuccess, setBulkSuccess] = useState<string | null>(null);
+  const [bulkFromMin, setBulkFromMin] = useState(16 * 60);
+  const [bulkToMin, setBulkToMin] = useState(19 * 60);
+  const [bulkDay, setBulkDay] = useState(() => dayKeyFromDate(new Date()));
 
   useEffect(() => {
-    void load();
     fetch("/api/users", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => setUsers(data.users ?? []));
-    const interval = setInterval(() => void load(), 15000);
-    return () => clearInterval(interval);
-  }, [load]);
+  }, []);
 
-  /** Combines the chosen "HH:MM" with today's date — null if left blank. */
+  /** Combines the chosen "HH:MM" with the selected day — null if left blank. */
   function buildSendAtIso(): string | null {
-    return sendTime ? buildSendAtIsoFromTime(sendTime) : null;
+    return sendTime ? buildSendAtIsoFromTime(sendTime, sendDay) : null;
   }
 
   async function createChallenge(e: React.FormEvent) {
@@ -725,10 +840,9 @@ function ApprovedTab() {
         const data = await res.json();
         if (!res.ok) {
           setFormError(`Utmaningen skapades men kunde inte schemaläggas: ${data.error ?? "okänt fel"}`);
-          await load();
           return;
         }
-        setFormSuccess(`Utmaningen skapades och syns på tidslinjen kl ${sendTime}.`);
+        setFormSuccess(`Utmaningen skapades och syns under Schema ${upcomingDays(5).find((d) => d.key === sendDay)?.label ?? ""} kl ${sendTime}.`);
       } else {
         const res = await fetch(`/api/challenges/${challengeId}/send`, {
           method: "POST",
@@ -738,7 +852,6 @@ function ApprovedTab() {
         const data = await res.json();
         if (!res.ok) {
           setFormError(`Utmaningen skapades men kunde inte skickas: ${data.error ?? "okänt fel"}`);
-          await load();
           return;
         }
         const base = `Utmaningen skapades och skickades till ${data.sentTo} person${data.sentTo === 1 ? "" : "er"}`;
@@ -755,95 +868,252 @@ function ApprovedTab() {
       setTitle("");
       setSendTime("");
       setPoints(1);
-      await load();
     } finally {
       setCreating(false);
     }
   }
 
-  async function cancelSchedule(id: number) {
-    await fetch(`/api/schedule/${id}/cancel`, { method: "POST" });
-    await load();
+  async function createBulk(e: React.FormEvent) {
+    e.preventDefault();
+    setBulkError(null);
+    setBulkSuccess(null);
+    const titles = bulkText
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (titles.length === 0) {
+      setBulkError("Skriv minst en utmaning (en per rad).");
+      return;
+    }
+    if (!recipientsValid(bulkRecipients)) {
+      setBulkError("Välj minst en spelare, eller byt till Slumpad/Alla.");
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      const res = await fetch("/api/challenges/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          titles,
+          points: bulkPoints,
+          target: bulkRecipients.target,
+          userIds: bulkRecipients.target === "user" ? bulkRecipients.selectedUserIds : undefined,
+          fromTime: minutesToHhmm(bulkFromMin),
+          toTime: minutesToHhmm(bulkToMin),
+          day: bulkDay,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setBulkError(data.error || "Kunde inte lägga in utmaningarna.");
+        return;
+      }
+      setBulkText("");
+      setBulkSuccess(
+        `${data.count} utmaningar inlagda ${upcomingDays(5).find((d) => d.key === bulkDay)?.label ?? ""} slumpmässigt mellan ${minutesToHhmm(Math.min(bulkFromMin, bulkToMin))} och ${minutesToHhmm(Math.max(bulkFromMin, bulkToMin))}.`
+      );
+    } finally {
+      setBulkBusy(false);
+    }
   }
 
   return (
-    <div className="space-y-6">
-      {loading ? (
-        <p className="text-sm text-muted">Laddar tidslinje…</p>
-      ) : (
-        <EveningTimeline entries={schedule} onCancel={(id) => void cancelSchedule(id)} />
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setShowBulk((v) => !v)}
+          className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+            showBulk
+              ? "bg-accent text-ink"
+              : "border border-black/12 text-muted hover:bg-black/[0.03]"
+          }`}
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <ListPlus size={13} strokeWidth={2} />
+            Bulk utmaningar
+          </span>
+        </button>
+      </div>
+
+      {showBulk && (
+        <form onSubmit={createBulk} className="card space-y-3 p-4">
+          <p className="section-label">Bulk utmaningar</p>
+          <p className="text-sm text-muted">
+            En utmaning per rad. Skriv 1–5 i slutet för poäng, t.ex. &quot;Kindpuss 5&quot;.
+            Utan siffra används poängen du valt under.
+          </p>
+          <textarea
+            className="input-field min-h-40 resize-y"
+            placeholder={"Kindpuss-kombo 5\nSkål för kräftorna 1\nDansa med en främling"}
+            value={bulkText}
+            onChange={(e) => setBulkText(e.target.value)}
+          />
+          <RecipientDropdown
+            users={users}
+            value={bulkRecipients}
+            onChange={setBulkRecipients}
+            label="Mottagare"
+          />
+          <div>
+            <span className="mb-1.5 block text-xs text-muted">Dag</span>
+            <DayPicker value={bulkDay} onChange={setBulkDay} />
+          </div>
+          <div className="space-y-4">
+            <span className="block text-xs text-muted">Skicka slumpmässigt mellan</span>
+            <div className="space-y-2">
+              <div className="flex items-baseline justify-between">
+                <span className="text-xs text-muted">Från</span>
+                <span className="font-display text-base font-semibold tabular text-accent-strong">
+                  {minutesToHhmm(bulkFromMin)}
+                </span>
+              </div>
+              <input
+                type="range"
+                className="time-slider"
+                min={SLIDER_START_MIN}
+                max={SLIDER_END_MIN}
+                step={SLIDER_STEP_MIN}
+                value={bulkFromMin}
+                onChange={(e) => setBulkFromMin(Number(e.target.value))}
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-baseline justify-between">
+                <span className="text-xs text-muted">Till</span>
+                <span className="font-display text-base font-semibold tabular text-accent-strong">
+                  {minutesToHhmm(bulkToMin)}
+                </span>
+              </div>
+              <input
+                type="range"
+                className="time-slider"
+                min={SLIDER_START_MIN}
+                max={SLIDER_END_MIN}
+                step={SLIDER_STEP_MIN}
+                value={bulkToMin}
+                onChange={(e) => setBulkToMin(Number(e.target.value))}
+              />
+              <div className="flex justify-between text-[0.65rem] tabular text-muted">
+                <span>{minutesToHhmm(SLIDER_START_MIN)}</span>
+                <span>{minutesToHhmm(SLIDER_END_MIN)}</span>
+              </div>
+            </div>
+          </div>
+          <div>
+            <span className="mb-1.5 block text-xs text-muted">
+              Poäng — {difficultyOf(bulkPoints).label}
+            </span>
+            <div className="flex items-center justify-between gap-2">
+              {([1, 2, 3, 4, 5] as const).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setBulkPoints(n)}
+                  aria-pressed={bulkPoints === n}
+                  className={`flex aspect-square min-h-12 flex-1 items-center justify-center rounded-full text-base font-semibold tabular transition ${
+                    bulkPoints === n
+                      ? "bg-accent text-ink shadow-[0_4px_14px_-4px_rgba(168,127,58,0.55)]"
+                      : "border border-black/12 bg-white text-muted hover:bg-black/[0.03]"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+          {bulkError && <p className="text-sm text-danger">{bulkError}</p>}
+          {bulkSuccess && <p className="text-sm text-accent-strong">{bulkSuccess}</p>}
+          <button type="submit" disabled={bulkBusy} className="btn-primary w-full">
+            <Clock size={14} strokeWidth={1.75} />
+            {bulkBusy ? "Lägger in…" : "Lägg in i schema"}
+          </button>
+        </form>
       )}
 
-      <PlanOntoTimeline
-        challenges={challenges}
-        users={users}
-        onScheduled={() => void load()}
-      />
-
       <form onSubmit={createChallenge} className="card space-y-3 p-4">
-        <p className="section-label">Ny utmaning</p>
-        <RecipientDropdown
-          users={users}
-          value={recipients}
-          onChange={setRecipients}
-          label="Mottagare"
-        />
-        <input
-          className="input-field"
-          placeholder="Utmaning, t.ex. 'Kindpuss-kombo'"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          maxLength={120}
-          required
-        />
-        <div className="flex gap-3">
-          <label className="flex-1 text-sm">
-            <span className="mb-1.5 block text-xs text-muted">Tid (tomt = skicka direkt)</span>
-            <input
-              type="time"
-              className="input-field"
-              value={sendTime}
-              onChange={(e) => setSendTime(e.target.value)}
-            />
-          </label>
-          <label className="flex-1 text-sm">
-            <span className="mb-1.5 block text-xs text-muted">
-              Poäng (1 lätt, 2 medel, 3 svår, 5 vågad)
-            </span>
-            <input
-              type="number"
-              className="input-field"
-              min={1}
-              max={5}
-              value={points}
-              onChange={(e) => setPoints(Number(e.target.value))}
-            />
-          </label>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {PARTY_TIME_SLOTS.map((slot) => (
+      <p className="section-label">Ny utmaning</p>
+      <RecipientDropdown
+        users={users}
+        value={recipients}
+        onChange={setRecipients}
+        label="Mottagare"
+      />
+      <input
+        className="input-field"
+        placeholder="Utmaning, t.ex. 'Kindpuss-kombo'"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        maxLength={120}
+        required
+      />
+      <div>
+        <span className="mb-1.5 block text-xs text-muted">
+          Poäng — {difficultyOf(points).label}
+        </span>
+        <div className="flex items-center justify-between gap-2">
+          {([1, 2, 3, 4, 5] as const).map((n) => (
             <button
-              key={slot}
+              key={n}
               type="button"
-              onClick={() => setSendTime(slot)}
-              className={`rounded-full px-2.5 py-1 text-[0.7rem] font-medium tabular transition ${
-                sendTime === slot
-                  ? "bg-accent text-ink"
-                  : "border border-black/10 text-muted hover:bg-black/[0.03]"
+              onClick={() => setPoints(n)}
+              aria-pressed={points === n}
+              className={`flex aspect-square min-h-12 flex-1 items-center justify-center rounded-full text-base font-semibold tabular transition ${
+                points === n
+                  ? "bg-accent text-ink shadow-[0_4px_14px_-4px_rgba(168,127,58,0.55)]"
+                  : "border border-black/12 bg-white text-muted hover:bg-black/[0.03]"
               }`}
             >
-              {slot}
+              {n}
             </button>
           ))}
         </div>
-        <p className="text-xs text-muted/70">Alla utmaningar har 5 minuter på sig att lösas.</p>
-        {formError && <p className="text-sm text-danger">{formError}</p>}
-        {formSuccess && <p className="text-sm text-accent-strong">{formSuccess}</p>}
-        <button type="submit" disabled={creating} className="btn-primary w-full">
-          <Send size={14} strokeWidth={1.75} />
-          {creating ? "Skapar…" : sendTime ? "Skapa och lägg på tidslinjen" : "Skapa och skicka nu"}
+      </div>
+      <div className="space-y-3">
+        <span className="block text-xs text-muted">Tid</span>
+        <DayPicker value={sendDay} onChange={setSendDay} />
+        <button
+          type="button"
+          onClick={() => setSendTime("")}
+          className={`w-full rounded-full py-2.5 text-sm font-medium transition ${
+            !sendTime
+              ? "bg-accent text-ink"
+              : "border border-black/12 bg-white text-muted hover:bg-black/[0.03]"
+          }`}
+        >
+          Skicka direkt
         </button>
-      </form>
+        <div className={`space-y-2 ${sendTime ? "" : "opacity-55"}`}>
+          <div className="flex items-baseline justify-between">
+            <span className="text-xs text-muted">Eller dra för att välja tid</span>
+            <span className="font-display text-lg font-semibold tabular text-accent-strong">
+              {sendTime || minutesToHhmm(18 * 60)}
+            </span>
+          </div>
+          <input
+            type="range"
+            className="time-slider"
+            min={SLIDER_START_MIN}
+            max={SLIDER_END_MIN}
+            step={SLIDER_STEP_MIN}
+            value={sendTime ? hhmmToMinutes(sendTime) : 18 * 60}
+            onChange={(e) => setSendTime(minutesToHhmm(Number(e.target.value)))}
+          />
+          <div className="flex justify-between text-[0.65rem] tabular text-muted">
+            <span>{minutesToHhmm(SLIDER_START_MIN)}</span>
+            <span>{minutesToHhmm(SLIDER_END_MIN)}</span>
+          </div>
+        </div>
+      </div>
+      <p className="text-xs text-muted/70">Alla utmaningar har 5 minuter på sig att lösas.</p>
+      {formError && <p className="text-sm text-danger">{formError}</p>}
+      {formSuccess && <p className="text-sm text-accent-strong">{formSuccess}</p>}
+      <button type="submit" disabled={creating} className="btn-primary w-full">
+        <Send size={14} strokeWidth={1.75} />
+        {creating ? "Skapar…" : sendTime ? "Skapa och schemalägg" : "Skapa och skicka nu"}
+      </button>
+    </form>
     </div>
   );
 }
@@ -851,7 +1121,9 @@ function ApprovedTab() {
 
 function ScheduleTab() {
   const [entries, setEntries] = useState<ScheduleEntry[]>([]);
+  const [users, setUsers] = useState<UserOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedDay, setSelectedDay] = useState(() => dayKeyFromDate(new Date()));
 
   const load = useCallback(async () => {
     const res = await fetch("/api/schedule", { cache: "no-store" });
@@ -861,10 +1133,11 @@ function ScheduleTab() {
   }, []);
 
   useEffect(() => {
-    load();
-    // Poll while this tab is open so a challenge flipping from "Schemalagd"
-    // to "Skickad" shows up without the admin needing to switch tabs back.
-    const interval = setInterval(load, 20000);
+    void load();
+    fetch("/api/users", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => setUsers(data.users ?? []));
+    const interval = setInterval(() => void load(), 20000);
     return () => clearInterval(interval);
   }, [load]);
 
@@ -873,64 +1146,42 @@ function ScheduleTab() {
     await load();
   }
 
-  const upcoming = entries.filter((e) => e.status === "scheduled" || e.status === "sending");
-  const history = entries.filter((e) => e.status !== "scheduled" && e.status !== "sending");
+  const history = entries.filter(
+    (e) =>
+      (e.status === "canceled" || e.status === "failed") && isoDayKey(e.send_at) === selectedDay
+  );
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="section-label mb-2">Kommande</p>
-        {loading ? (
-          <p className="text-sm text-muted">Laddar…</p>
-        ) : upcoming.length === 0 ? (
-          <p className="text-sm text-muted">
-            Inget schemalagt just nu — schemalägg utmaningar från fliken &quot;Utmaningar&quot;.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {upcoming.map((e) => {
-              const status = statusLabel(e.status);
-              return (
-                <div key={e.id} className="card space-y-2 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium text-cream">
-                      <span className="mr-1.5">{e.challenge_emoji}</span>
-                      {e.challenge_title}
-                    </p>
-                    <span className={`chip ${status.className}`}>{status.label}</span>
-                  </div>
-                  <p className="text-sm text-muted">
-                    {formatDateTime(e.send_at)} · {targetLabel(e)}
-                  </p>
-                  {e.status === "scheduled" && (
-                    <button className="btn-secondary w-full text-sm" onClick={() => cancel(e.id)}>
-                      <X size={14} strokeWidth={1.75} />
-                      Avboka
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+    <div className="min-w-0 space-y-4 overflow-x-hidden">
+      <DayPicker value={selectedDay} onChange={setSelectedDay} />
+      {loading ? (
+        <p className="text-sm text-muted">Laddar schema…</p>
+      ) : (
+        <EveningTimeline
+          entries={entries}
+          users={users}
+          selectedDay={selectedDay}
+          onCancel={(id) => void cancel(id)}
+          onSaved={() => void load()}
+        />
+      )}
 
       {history.length > 0 && (
         <div>
-          <p className="section-label mb-2">Historik</p>
+          <p className="section-label mb-2">Avbokade och misslyckade</p>
           <div className="space-y-2">
             {history.map((e) => {
               const status = statusLabel(e.status);
               return (
                 <div
                   key={e.id}
-                  className="card flex items-center justify-between gap-2 p-3 text-sm"
+                  className="card flex min-w-0 items-start justify-between gap-2 overflow-hidden p-2.5 text-xs"
                 >
-                  <span className="text-cream">
-                    {e.challenge_emoji} {e.challenge_title} · {targetLabel(e)} ·{" "}
+                  <span className="min-w-0 break-words text-cream">
+                    {e.challenge_title} · {targetLabel(e)} ·{" "}
                     {formatDateTime(e.send_at)}
                   </span>
-                  <span className={status.className}>{status.label}</span>
+                  <span className={`${status.className} shrink-0`}>{status.label}</span>
                 </div>
               );
             })}
@@ -940,6 +1191,8 @@ function ScheduleTab() {
     </div>
   );
 }
+
+const RSVP_SORT: Record<"yes" | "maybe" | "no", number> = { yes: 0, maybe: 1, no: 2 };
 
 function GuestsTab() {
   const [name, setName] = useState("");
@@ -961,6 +1214,33 @@ function GuestsTab() {
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [testPushId, setTestPushId] = useState<number | null>(null);
   const [testMsg, setTestMsg] = useState<string | null>(null);
+  const [rsvpFilter, setRsvpFilter] = useState<"all" | "yes" | "maybe" | "no" | "none">("all");
+
+  const counts = useMemo(() => {
+    const n = { all: guests.length, yes: 0, maybe: 0, no: 0, none: 0 };
+    for (const g of guests) {
+      if (g.rsvpStatus === "yes") n.yes += 1;
+      else if (g.rsvpStatus === "maybe") n.maybe += 1;
+      else if (g.rsvpStatus === "no") n.no += 1;
+      else n.none += 1;
+    }
+    return n;
+  }, [guests]);
+
+  const visibleGuests = useMemo(() => {
+    const filtered =
+      rsvpFilter === "all"
+        ? guests
+        : rsvpFilter === "none"
+          ? guests.filter((g) => g.rsvpStatus == null)
+          : guests.filter((g) => g.rsvpStatus === rsvpFilter);
+    return [...filtered].sort((a, b) => {
+      const ar = a.rsvpStatus == null ? 3 : RSVP_SORT[a.rsvpStatus];
+      const br = b.rsvpStatus == null ? 3 : RSVP_SORT[b.rsvpStatus];
+      if (ar !== br) return ar - br;
+      return a.displayName.localeCompare(b.displayName, "sv");
+    });
+  }, [guests, rsvpFilter]);
 
   const load = useCallback(async (opts?: { quiet?: boolean }) => {
     if (!opts?.quiet) setLoading(true);
@@ -1076,7 +1356,7 @@ function GuestsTab() {
 
   function smsHref(guest: { displayName: string; inviteUrl: string | null }) {
     if (!guest.inviteUrl) return "#";
-    const body = `Hej ${guest.displayName}! 🦞 Du är inbjuden till kräftskivan på Brattön. Öppna din personliga inbjudan här: ${guest.inviteUrl}`;
+    const body = `Hej ${guest.displayName}! Du är inbjuden till en personalaktivitet på Lilla Brattön. Öppna din personliga inbjudan här: ${guest.inviteUrl}`;
     return `sms:?&body=${encodeURIComponent(body)}`;
   }
 
@@ -1163,6 +1443,30 @@ function GuestsTab() {
         <p className="section-label">
           {loading ? "Laddar…" : `${guests.length} inbjudna`}
         </p>
+        <div className="flex flex-wrap gap-1.5">
+          {(
+            [
+              { key: "all", label: "Alla" },
+              { key: "yes", label: "Jag kommer" },
+              { key: "maybe", label: "Kanske" },
+              { key: "no", label: "Kan inte" },
+              { key: "none", label: "Ej svarat" },
+            ] as const
+          ).map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setRsvpFilter(f.key)}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                rsvpFilter === f.key
+                  ? "bg-accent text-ink"
+                  : "border border-black/10 text-muted hover:bg-black/[0.03]"
+              }`}
+            >
+              {f.label} ({counts[f.key]})
+            </button>
+          ))}
+        </div>
         <p className="text-xs text-muted">
           Notiser kräver att gästen öppnat appen från hemskärmen (iPhone) och tryckt Aktivera.
           Utmaningar syns i appen även utan notis.
@@ -1170,8 +1474,11 @@ function GuestsTab() {
         {!loading && guests.length === 0 && (
           <p className="text-sm text-muted">Inga gäster ännu — lägg till den första ovan.</p>
         )}
+        {!loading && guests.length > 0 && visibleGuests.length === 0 && (
+          <p className="text-sm text-muted">Ingen inbjuden med det svaret.</p>
+        )}
         <ul className="space-y-2">
-          {guests.map((g) => (
+          {visibleGuests.map((g) => (
             <li
               key={g.id}
               className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
@@ -1270,7 +1577,7 @@ function AdminContent() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-7">
+    <div className="mx-auto w-full min-w-0 max-w-2xl space-y-6 overflow-x-hidden px-4 py-7">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-medium text-cream">Admin</h1>

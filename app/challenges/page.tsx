@@ -1,14 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, CheckCircle2, Clock, ImageOff, Images } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Camera, CheckCircle2, Clock, ImageOff } from "lucide-react";
 import CameraCapture from "../components/CameraCapture";
 import Countdown from "../components/Countdown";
 import EvidenceCard from "../components/EvidenceCard";
 import PushOptIn from "../components/PushOptIn";
 import { useAuth } from "../providers";
-import { fileToCompressedDataUrl } from "@/lib/compressImage";
-import type { HistoryAssignment, PendingAssignment, Submission } from "@/lib/types";
+import type { PendingAssignment, Submission } from "@/lib/types";
 import Link from "next/link";
 
 function ChallengeCard({
@@ -22,9 +21,8 @@ function ChallengeCard({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<number | null>(null);
   const [showCamera, setShowCamera] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  async function submitPhoto(imageData: string) {
+  async function submitEvidence(imageData: string) {
     setBusy(true);
     setError(null);
     try {
@@ -35,7 +33,7 @@ function ChallengeCard({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Kunde inte skicka in bilden.");
+        setError(data.error || "Kunde inte skicka in beviset.");
         if (res.status === 410) setTimeout(onDone, 1500);
         return;
       }
@@ -45,19 +43,6 @@ function ChallengeCard({
       setError("Nätverksfel, testa igen.");
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const imageData = await fileToCompressedDataUrl(file);
-      await submitPhoto(imageData);
-    } catch {
-      setError("Kunde inte läsa bilden, testa en annan.");
-    } finally {
-      if (inputRef.current) inputRef.current.value = "";
     }
   }
 
@@ -76,16 +61,21 @@ function ChallengeCard({
     <div className="card space-y-3 border-l-2 border-l-accent bg-accent/[0.04] p-4">
       {showCamera && (
         <CameraCapture
+          challenge={{
+            title: assignment.title,
+            description: assignment.description,
+            points: assignment.points,
+            deadlineIso: assignment.deadlineIso,
+          }}
           onCapture={(dataUrl) => {
             setShowCamera(false);
-            void submitPhoto(dataUrl);
+            void submitEvidence(dataUrl);
           }}
           onClose={() => setShowCamera(false)}
         />
       )}
       <div className="flex items-start justify-between gap-3">
         <p className="font-display text-lg font-medium text-cream">
-          <span className="mr-1.5">{assignment.emoji}</span>
           {assignment.title}
         </p>
         <Countdown
@@ -99,28 +89,15 @@ function ChallengeCard({
       )}
       <p className="chip">Värd {assignment.points} poäng</p>
 
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => setShowCamera(true)}
-          disabled={busy}
-          className="btn-primary flex-1"
-        >
-          <Camera size={17} strokeWidth={1.75} />
-          {busy ? "Skickar…" : "Ta bildbevis nu"}
-        </button>
-        <label className="btn-secondary cursor-pointer">
-          <Images size={17} strokeWidth={1.75} />
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            disabled={busy}
-            onChange={onFile}
-          />
-        </label>
-      </div>
+      <button
+        type="button"
+        onClick={() => setShowCamera(true)}
+        disabled={busy}
+        className="btn-primary w-full"
+      >
+        <Camera size={17} strokeWidth={1.75} />
+        {busy ? "Skickar…" : "Gör utmaningen"}
+      </button>
       {error && <p className="text-sm text-danger">{error}</p>}
     </div>
   );
@@ -129,7 +106,6 @@ function ChallengeCard({
 function ChallengesContent() {
   const { refresh, user } = useAuth();
   const [pending, setPending] = useState<PendingAssignment[]>([]);
-  const [history, setHistory] = useState<HistoryAssignment[]>([]);
   const [mine, setMine] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -137,7 +113,6 @@ function ChallengesContent() {
     const res = await fetch("/api/challenges/active", { cache: "no-store" });
     const data = await res.json();
     setPending(data.pending ?? []);
-    setHistory(data.history ?? []);
     setLoading(false);
   }, []);
 
@@ -163,8 +138,6 @@ function ChallengesContent() {
     void loadMine();
     void refresh();
   }, [loadActive, loadMine, refresh]);
-
-  const missed = history.filter((h) => h.status === "expired");
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-7">
@@ -213,34 +186,19 @@ function ChallengesContent() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-3 items-stretch gap-2 sm:gap-3">
+          <div className="grid grid-cols-4 items-stretch gap-1.5">
             {mine.map((s) => (
               <EvidenceCard
                 key={s.id}
                 photoUrl={s.photo_data!}
                 title={s.title}
                 points={s.points_awarded}
+                compact
               />
             ))}
           </div>
         )}
       </div>
-
-      {missed.length > 0 && (
-        <div>
-          <p className="section-label mb-2">Missade</p>
-          <div className="flex flex-wrap gap-2">
-            {missed.map((h) => (
-              <span
-                key={h.id}
-                className="inline-flex items-center gap-1 rounded-full border border-black/10 px-2.5 py-1 text-xs text-muted"
-              >
-                {h.emoji} {h.title}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

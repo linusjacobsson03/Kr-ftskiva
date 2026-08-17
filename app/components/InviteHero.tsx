@@ -6,11 +6,11 @@ import { Check, HelpCircle, PartyPopper, X } from "lucide-react";
 
 /** Edit these to match your own party. */
 export const EVENT = {
-  title: "Kräftskiva",
+  title: "Lilla Brattön",
   dateLabel: "Lördag 19 september, 16:00",
   venue: "Lilla Brattön, båthuset",
   invited: 45,
-  welcomeHeading: "VÄLKOMNA TILL ÅRETS KRÄFTSKIVA – BRATTÖN BÅTHUSET",
+  welcomeHeading: "VÄLKOMNA TILL PERSONALAKTIVITETEN – LILLA BRATTÖN",
   welcomeIntro:
     "Sensommaren är här, kräftorna väntar och det är dags för det vi alla har längtat efter – årets kräftskiva på Brattön! Vi lovar er en kväll fylld med god mat, hårda skratt, klassiska lekar och minnen som kommer pratas om långt in på nästa sommar. Så boka in kvällen, ladda batterierna och gör er redo – för det här ska bli EPIC.",
   sections: [

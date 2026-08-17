@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAdminSession, hasConfiguredAdminPasscode } from "@/lib/auth";
+import { getAdminSession, hasConfiguredAdminPasscode, getAdminPasscodeLength } from "@/lib/auth";
 import { apiError } from "@/lib/apiError";
 
 /**
@@ -13,7 +13,11 @@ import { apiError } from "@/lib/apiError";
 export async function GET() {
   try {
     const unlocked = await getAdminSession();
-    return NextResponse.json({ unlocked, passcodeConfigured: hasConfiguredAdminPasscode() });
+    return NextResponse.json({
+      unlocked,
+      passcodeConfigured: hasConfiguredAdminPasscode(),
+      passcodeLength: getAdminPasscodeLength(),
+    });
   } catch (err) {
     return apiError(err);
   }

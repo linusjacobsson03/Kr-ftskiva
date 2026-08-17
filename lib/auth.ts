@@ -144,7 +144,13 @@ async function getGeneratedPasscodeHash(): Promise<string> {
   );
 }
 
-/** True when ADMIN_PASSCODE is configured — exposed (not the value) via /api/admin/session to help diagnose "set it in Vercel but it still doesn't work" (usually: wrong environment scope, or no redeploy yet). */
+/** Length of the numeric admin PIN (from ADMIN_PASSCODE). Defaults to 4. */
+export function getAdminPasscodeLength(): number {
+  const raw = process.env.ADMIN_PASSCODE?.trim() ?? "";
+  if (/^\d{4,8}$/.test(raw)) return raw.length;
+  return 4;
+}
+/** True when ADMIN_PASSCODE is set — exposed (not the value) via /api/admin/session. */
 export function hasConfiguredAdminPasscode(): boolean {
   return !!process.env.ADMIN_PASSCODE?.trim();
 }

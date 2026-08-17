@@ -17,13 +17,13 @@ export async function POST(request: Request) {
 
   const passcode = (body.passcode ?? "").toString();
   if (!passcode) {
-    return NextResponse.json({ error: "Ange lösenordet." }, { status: 400 });
+    return NextResponse.json({ error: "Ange koden." }, { status: 400 });
   }
 
   try {
     const ok = await verifyAdminPasscode(passcode);
     if (!ok) {
-      return NextResponse.json({ error: "Fel lösenord." }, { status: 401 });
+      return NextResponse.json({ error: "Fel kod." }, { status: 401 });
     }
     const token = await createAdminSessionToken();
     const response = NextResponse.json({ ok: true });

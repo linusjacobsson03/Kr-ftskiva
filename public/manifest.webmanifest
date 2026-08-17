@@ -1,13 +1,13 @@
 {
-  "name": "Kräftskiva",
-  "short_name": "Kräftskiva",
-  "description": "Appen för kvällens kräftskiva – utmaningar, foton och topplista!",
+  "name": "Lilla Brattön",
+  "short_name": "Brattön",
+  "description": "Du är inbjuden till en personalaktivitet på Lilla Brattön.",
   "start_url": "/",
   "id": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#ffffff",
+  "background_color": "#013879",
   "theme_color": "#ffffff",
   "lang": "sv",
   "icons": [

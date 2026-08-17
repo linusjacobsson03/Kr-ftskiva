@@ -55,7 +55,7 @@ export default function PushOptIn() {
         <div className="space-y-1.5 text-sm text-muted">
           <p className="font-medium text-cream">Notiser funkar inte i Safari-fliken</p>
           <p>
-            På iPhone måste du öppna Kräftskiva från hemskärmen. Tryck{" "}
+            På iPhone måste du öppna Lilla Brattön från hemskärmen. Tryck{" "}
             <span className="text-cream">Dela</span> →{" "}
             <span className="text-cream">&quot;Lägg till på hemskärmen&quot;</span>
             , öppna ikonen därifrån, logga in via din inbjudningslänk, och tryck Aktivera.
@@ -134,7 +134,7 @@ export default function PushOptIn() {
         <p className="text-sm text-muted">
           <span className="font-medium text-cream">Notiser är avstängda.</span>{" "}
           {isIos
-            ? "Öppna Inställningar → Notiser → Kräftskiva och slå på Tillåt notiser."
+            ? "Öppna Inställningar → Notiser → Lilla Brattön och slå på Tillåt notiser."
             : "Tillåt notiser för den här sidan i webbläsarens inställningar."}
         </p>
       </div>

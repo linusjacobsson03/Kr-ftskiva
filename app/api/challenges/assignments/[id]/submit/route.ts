@@ -50,14 +50,19 @@ export async function POST(
       return NextResponse.json({ error: "Ogiltig förfrågan." }, { status: 400 });
     }
     const imageData = (body.imageData ?? "").toString();
-    if (!imageData.startsWith("data:image/")) {
+    const isImage = imageData.startsWith("data:image/");
+    const isVideo = imageData.startsWith("data:video/");
+    if (!isImage && !isVideo) {
       return NextResponse.json(
-        { error: "Bildbevis krävs för att klara utmaningen." },
+        { error: "Bild- eller videobevis krävs för att klara utmaningen." },
         { status: 400 }
       );
     }
     if (imageData.length > MAX_IMAGE_CHARS) {
-      return NextResponse.json({ error: "Bilden är för stor." }, { status: 413 });
+      return NextResponse.json(
+        { error: isVideo ? "Videon är för stor, spela in ett kortare klipp." : "Bilden är för stor." },
+        { status: 413 }
+      );
     }
 
     const challenge = await getOne<ChallengeRow>("SELECT * FROM challenges WHERE id = ?", [

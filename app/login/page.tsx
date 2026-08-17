@@ -40,7 +40,7 @@ export default function LoginPage() {
           className="rounded-2xl shadow-[0_20px_50px_-20px_rgba(201,161,90,0.4)]"
         />
         <h1 className="font-display mt-5 text-4xl font-medium tracking-tight text-cream">
-          Kräftskiva
+          Lilla Brattön
         </h1>
         <p className="mt-2 font-display text-[0.95rem] italic text-muted">
           Utmaningar, foton &amp; topplista i kväll

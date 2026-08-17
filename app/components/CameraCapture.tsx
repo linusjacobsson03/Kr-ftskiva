@@ -1,31 +1,98 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { RefreshCw, X } from "lucide-react";
-import { videoFrameToCompressedDataUrl } from "@/lib/compressImage";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { createPortal } from "react-dom";
+import { Images, RefreshCw, Square, X } from "lucide-react";
+import {
+  fileToCompressedDataUrl,
+  videoFrameToCompressedDataUrl,
+} from "@/lib/compressImage";
+import Countdown from "./Countdown";
+
+const MAX_SECONDS = 8;
+const VIDEO_BITRATE = 2_200_000;
+const AUDIO_BITRATE = 96_000;
+
+function pickMimeType(): string {
+  const candidates = [
+    "video/mp4",
+    "video/webm;codecs=vp9,opus",
+    "video/webm;codecs=vp8,opus",
+    "video/webm",
+  ];
+  for (const type of candidates) {
+    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type)) {
+      return type;
+    }
+  }
+  return "";
+}
 
 /**
- * A full-screen in-app camera view, used instead of handing off to the
- * native camera app (`<input capture>`). Building our own means we control
- * exactly what gets saved — in particular, the front camera's preview is
- * shown mirrored (natural, like looking in a mirror while framing
- * yourself) but the captured photo is un-mirrored before it's handed back,
- * the same convention Snapchat etc. use. `<input capture>` gives no such
- * control — whether the saved file comes back mirrored is entirely up to
- * the phone's own camera app and varies by device.
+ * Full-screen in-app camera (photo + video + gallery). Portaled to body so
+ * iOS Safari doesn't clip it inside cards / overflow. Preview covers the
+ * whole screen; controls sit on top.
  */
 export default function CameraCapture({
   onCapture,
   onClose,
+  initialMode = "photo",
+  challenge,
 }: {
   onCapture: (dataUrl: string) => void;
   onClose: () => void;
+  initialMode?: "photo" | "video";
+  challenge?: {
+    title: string;
+    description?: string;
+    points?: number;
+    deadlineIso?: string;
+  };
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+
+  const [mounted, setMounted] = useState(false);
+  const [mode, setMode] = useState<"photo" | "video">(initialMode);
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const prev = {
+      htmlOverflow: html.style.overflow,
+      bodyOverflow: body.style.overflow,
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyWidth: body.style.width,
+      scrollY: window.scrollY,
+    };
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${prev.scrollY}px`;
+    body.style.width = "100%";
+    return () => {
+      html.style.overflow = prev.htmlOverflow;
+      body.style.overflow = prev.bodyOverflow;
+      body.style.position = prev.bodyPosition;
+      body.style.top = prev.bodyTop;
+      body.style.width = prev.bodyWidth;
+      window.scrollTo(0, prev.scrollY);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,14 +103,12 @@ export default function CameraCapture({
       streamRef.current?.getTracks().forEach((t) => t.stop());
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          // Without explicit ideal dimensions, browsers often negotiate a
-          // low default resolution (sometimes as low as 640x480) — that's
-          // the actual captured detail, no amount of downscaling/JPEG
-          // quality afterward can recover it. Asking for a high `ideal`
-          // (never `exact`, so it still degrades gracefully on older/lower
-          // cameras) gets the sharp, high-res capture people expect.
-          video: { facingMode, width: { ideal: 2560 }, height: { ideal: 1440 } },
-          audio: false,
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: mode === "video" ? 1920 : 2560 },
+            height: { ideal: mode === "video" ? 1080 : 1440 },
+          },
+          audio: mode === "video",
         });
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
@@ -58,26 +123,35 @@ export default function CameraCapture({
       } catch {
         if (!cancelled) {
           setError(
-            "Kunde inte starta kameran. Kolla att appen/webbläsaren har fått tillåtelse att använda den."
+            mode === "video"
+              ? "Kunde inte starta kameran. Kolla att appen har fått tillåtelse att använda kamera och mikrofon."
+              : "Kunde inte starta kameran. Kolla att appen/webbläsaren har fått tillåtelse att använda den."
           );
         }
       }
     }
 
-    start();
+    void start();
     return () => {
       cancelled = true;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     };
-  }, [facingMode]);
+  }, [facingMode, mode]);
+
+  function clearTimers() {
+    if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
+    if (tickRef.current) clearInterval(tickRef.current);
+    stopTimerRef.current = null;
+    tickRef.current = null;
+  }
 
   function stopStream() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
   }
 
-  function capture() {
+  function capturePhoto() {
     const video = videoRef.current;
     if (!video || !ready) return;
     const dataUrl = videoFrameToCompressedDataUrl(video, { mirror: facingMode === "user" });
@@ -85,52 +159,243 @@ export default function CameraCapture({
     onCapture(dataUrl);
   }
 
+  function startRecording() {
+    const stream = streamRef.current;
+    if (!stream || !ready || recording) return;
+    const mimeType = pickMimeType();
+    const recorder = new MediaRecorder(stream, {
+      ...(mimeType ? { mimeType } : {}),
+      videoBitsPerSecond: VIDEO_BITRATE,
+      audioBitsPerSecond: AUDIO_BITRATE,
+    });
+    chunksRef.current = [];
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data);
+    };
+    recorder.onstop = () => finish(mimeType || recorder.mimeType || "video/webm");
+    recorderRef.current = recorder;
+    recorder.start();
+    setRecording(true);
+    setElapsed(0);
+    tickRef.current = setInterval(() => setElapsed((s) => s + 1), 1000);
+    stopTimerRef.current = setTimeout(stopRecording, MAX_SECONDS * 1000);
+  }
+
+  function stopRecording() {
+    clearTimers();
+    if (recorderRef.current && recorderRef.current.state !== "inactive") {
+      setProcessing(true);
+      recorderRef.current.stop();
+    }
+    setRecording(false);
+  }
+
+  function finish(mimeType: string) {
+    const blob = new Blob(chunksRef.current, { type: mimeType });
+    chunksRef.current = [];
+    stopStream();
+    const reader = new FileReader();
+    reader.onload = () => {
+      setProcessing(false);
+      onCapture(reader.result as string);
+    };
+    reader.onerror = () => {
+      setProcessing(false);
+      setError("Kunde inte spara videon, testa igen.");
+    };
+    reader.readAsDataURL(blob);
+  }
+
   function close() {
+    clearTimers();
     stopStream();
     onClose();
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black">
-      <div className="flex items-center justify-between p-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
-        <button
-          onClick={close}
-          aria-label="Stäng kameran"
-          className="rounded-full bg-white/10 p-2.5 text-white backdrop-blur"
-        >
-          <X size={20} strokeWidth={1.75} />
-        </button>
-        <button
-          onClick={() => setFacingMode((m) => (m === "environment" ? "user" : "environment"))}
-          aria-label="Byt kamera"
-          className="rounded-full bg-white/10 p-2.5 text-white backdrop-blur"
-        >
-          <RefreshCw size={20} strokeWidth={1.75} />
-        </button>
-      </div>
+  function switchMode(next: "photo" | "video") {
+    if (recording || processing || next === mode) return;
+    setMode(next);
+  }
 
-      <div className="relative flex flex-1 items-center justify-center overflow-hidden">
+  async function onGallery(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      setProcessing(true);
+      const dataUrl = await fileToCompressedDataUrl(file);
+      stopStream();
+      onCapture(dataUrl);
+    } catch {
+      setError("Kunde inte läsa bilden, testa en annan.");
+      setProcessing(false);
+    }
+  }
+
+  if (!mounted) return null;
+
+  const ui = (
+    <div
+      className="fixed inset-0 z-[200] flex flex-col bg-black overscroll-none"
+      style={{
+        width: "100vw",
+        height: "100dvh",
+        minHeight: "-webkit-fill-available",
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Kamera"
+    >
+      <div className="relative mx-3 mt-[calc(env(safe-area-inset-top,0px)+0.65rem)] min-h-0 flex-1 overflow-hidden rounded-[1.75rem] bg-zinc-900">
         {error ? (
-          <p className="max-w-xs px-6 text-center text-sm text-white/80">{error}</p>
+          <p className="absolute inset-0 flex items-center justify-center px-8 text-center text-sm text-white/80">
+            {error}
+          </p>
         ) : (
           <video
             ref={videoRef}
             autoPlay
             playsInline
             muted
-            className={`h-full w-full object-cover ${facingMode === "user" ? "scale-x-[-1]" : ""}`}
+            className={`absolute inset-0 h-full w-full object-cover ${
+              facingMode === "user" ? "scale-x-[-1]" : ""
+            }`}
           />
         )}
+
+        <div className="absolute inset-x-0 top-0 z-10 px-3 pt-3">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={close}
+              aria-label="Stäng kameran"
+              className="rounded-full bg-black/40 p-2.5 text-white backdrop-blur"
+            >
+              <X size={20} strokeWidth={1.75} />
+            </button>
+            {mode === "video" && recording ? (
+              <span className="flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-1.5 text-sm font-medium text-white backdrop-blur">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-danger" />
+                {elapsed}s / {MAX_SECONDS}s
+              </span>
+            ) : (
+              <span />
+            )}
+            <button
+              type="button"
+              onClick={() => setFacingMode((m) => (m === "environment" ? "user" : "environment"))}
+              aria-label="Byt kamera"
+              disabled={recording}
+              className="rounded-full bg-black/40 p-2.5 text-white backdrop-blur disabled:opacity-30"
+            >
+              <RefreshCw size={20} strokeWidth={1.75} />
+            </button>
+          </div>
+          {challenge && (
+            <div className="mt-3 rounded-2xl bg-black/55 px-3.5 py-2.5 text-white backdrop-blur-md">
+              <div className="flex items-start justify-between gap-3">
+                <p className="min-w-0 font-display text-base font-medium leading-snug">
+                  {challenge.title}
+                </p>
+                {challenge.deadlineIso && (
+                  <Countdown
+                    deadlineIso={challenge.deadlineIso}
+                    className="shrink-0 text-lg text-white"
+                  />
+                )}
+              </div>
+              {challenge.description ? (
+                <p className="mt-1 line-clamp-2 text-xs leading-snug text-white/75">
+                  {challenge.description}
+                </p>
+              ) : null}
+              {typeof challenge.points === "number" ? (
+                <p className="mt-1 text-[0.7rem] font-semibold tracking-wide text-accent">
+                  Värd {challenge.points} poäng
+                </p>
+              ) : null}
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="flex items-center justify-center p-8 pb-[calc(env(safe-area-inset-bottom)+2rem)]">
-        <button
-          onClick={capture}
-          disabled={!ready}
-          aria-label="Ta bild"
-          className="h-16 w-16 rounded-full border-4 border-white bg-white/20 transition active:scale-95 disabled:opacity-40"
-        />
+      <div className="z-10 flex shrink-0 flex-col items-center gap-4 px-6 pb-[calc(env(safe-area-inset-bottom,0px)+1.25rem)] pt-4">
+        <div className="flex items-center gap-8">
+          <button
+            type="button"
+            onClick={() => galleryRef.current?.click()}
+            disabled={recording || processing}
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur disabled:opacity-30"
+            aria-label="Galleri"
+          >
+            <Images size={18} strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
+            onClick={
+              mode === "photo" ? capturePhoto : recording ? stopRecording : startRecording
+            }
+            disabled={!ready || processing}
+            aria-label={
+              mode === "photo" ? "Ta bild" : recording ? "Stoppa inspelning" : "Spela in video"
+            }
+            className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full border-[3px] border-white bg-white/15 transition active:scale-95 disabled:opacity-40"
+          >
+            {mode === "video" ? (
+              recording ? (
+                <Square size={22} className="fill-danger text-danger" />
+              ) : (
+                <span className="h-12 w-12 rounded-full bg-danger" />
+              )
+            ) : (
+              <span className="h-12 w-12 rounded-full bg-white" />
+            )}
+          </button>
+          <span className="h-11 w-11" aria-hidden />
+        </div>
+
+        <div className="flex items-center gap-1 rounded-full bg-black/45 p-1 backdrop-blur">
+          <button
+            type="button"
+            disabled={recording || processing}
+            onClick={() => switchMode("photo")}
+            className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+              mode === "photo" ? "bg-white text-ink" : "text-white/80"
+            }`}
+          >
+            Foto
+          </button>
+          <button
+            type="button"
+            disabled={recording || processing}
+            onClick={() => switchMode("video")}
+            className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+              mode === "video" ? "bg-white text-ink" : "text-white/80"
+            }`}
+          >
+            Video
+          </button>
+        </div>
+        <p className="text-xs text-white/70">
+          {processing
+            ? "Sparar…"
+            : mode === "video"
+              ? recording
+                ? "Tryck för att stoppa"
+                : "Byt till video och filma ett kort klipp"
+              : "Foto, video eller galleri"}
+        </p>
       </div>
+
+      <input
+        ref={galleryRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => void onGallery(e)}
+      />
     </div>
   );
+
+  return createPortal(ui, document.body);
 }

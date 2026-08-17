@@ -12,7 +12,6 @@ import {
   X,
 } from "lucide-react";
 import CameraCapture from "../components/CameraCapture";
-import VideoRecorder from "../components/VideoRecorder";
 import Lightbox from "../components/Lightbox";
 import EvidenceCard from "../components/EvidenceCard";
 import { useAuth } from "../providers";
@@ -238,7 +237,8 @@ function PhotosContent() {
         />
       )}
       {showVideoRecorder && (
-        <VideoRecorder
+        <CameraCapture
+          initialMode="video"
           onCapture={(dataUrl) => {
             setPreviews([dataUrl]);
             setShowVideoRecorder(false);
