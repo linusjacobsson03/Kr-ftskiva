@@ -106,6 +106,7 @@ function LeaderboardContent() {
           isChallenge: true,
           points: s.points_awarded,
           mirrored: Boolean(s.is_mirrored),
+          isVideo: Boolean(s.is_video),
         })),
     [subs]
   );
@@ -165,6 +166,7 @@ function LeaderboardContent() {
                       title={s.title}
                       points={s.points_awarded}
                       mirrored={Boolean(s.is_mirrored)}
+                      isVideo={Boolean(s.is_video)}
                       onClick={() => {
                         if (lbIndex >= 0) setLightboxIndex(lbIndex);
                       }}

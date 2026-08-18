@@ -16,7 +16,7 @@ import Lightbox from "../components/Lightbox";
 import EvidenceCard from "../components/EvidenceCard";
 import { useAuth } from "../providers";
 import { fileToCompressedDataUrl } from "@/lib/compressImage";
-import { extensionForDataUrl, saveItems } from "@/lib/download";
+import { saveItems } from "@/lib/download";
 import { fileNameForVideoBlob, isVideoSrc } from "@/lib/cameraVideo";
 import type { CaptureMeta } from "../components/CameraCapture";
 import type { PhotoItem, Submission } from "@/lib/types";
@@ -117,6 +117,7 @@ function PhotosContent() {
               caption: entry.photo.caption || undefined,
               displayName: entry.photo.display_name,
               mirrored: Boolean(entry.photo.is_mirrored),
+              isVideo: Boolean(entry.photo.is_video),
             }
           : {
               id: entry.id + 1_000_000,
@@ -126,6 +127,7 @@ function PhotosContent() {
               isChallenge: true,
               points: entry.submission.points_awarded,
               mirrored: Boolean(entry.submission.is_mirrored),
+              isVideo: Boolean(entry.submission.is_video),
             }
       ),
     [feed]
@@ -238,11 +240,11 @@ function PhotosContent() {
         e.kind === "photo"
           ? {
               dataUrl: e.photo.image_data,
-              filename: `kraftskiva-${e.id}.${extensionForDataUrl(e.photo.image_data)}`,
+              filename: `kraftskiva-${e.id}.${e.photo.is_video ? "mp4" : "jpg"}`,
             }
           : {
               dataUrl: e.submission.photo_data,
-              filename: `kraftskiva-bevis-${e.id}.${extensionForDataUrl(e.submission.photo_data)}`,
+              filename: `kraftskiva-bevis-${e.id}.${e.submission.is_video ? "mp4" : "jpg"}`,
             }
       );
     await saveItems(items);
@@ -467,6 +469,7 @@ function PhotosContent() {
                     title={entry.submission.title}
                     points={entry.submission.points_awarded}
                     mirrored={Boolean(entry.submission.is_mirrored)}
+                    isVideo={Boolean(entry.submission.is_video)}
                     onClick={() => onThumbnailClick(index, entry.key)}
                   />
                   {selectMode && (
@@ -488,7 +491,7 @@ function PhotosContent() {
             }
 
             const photo = entry.photo;
-            const isVideo = isVideoSrc(photo.image_data);
+            const isVideo = isVideoSrc(photo.image_data, undefined, photo.is_video);
             const isOwn = user?.id === photo.user_id;
             return (
               <div key={entry.key} className="relative flex h-full flex-col">
@@ -514,6 +517,7 @@ function PhotosContent() {
                         src={photo.image_data}
                         alt={photo.caption || "Fest-foto"}
                         className="aspect-[4/5] w-full object-cover"
+                        loading="lazy"
                       />
                     )}
                     {isVideo && (

@@ -11,6 +11,7 @@ export default function EvidenceCard({
   className = "",
   compact = false,
   mirrored = false,
+  isVideo = false,
 }: {
   photoUrl: string;
   title: string;
@@ -19,8 +20,12 @@ export default function EvidenceCard({
   className?: string;
   compact?: boolean;
   mirrored?: boolean;
+  isVideo?: boolean;
 }) {
-  const isVideo = photoUrl.startsWith("data:video/") || photoUrl.startsWith("blob:");
+  const isVideoMedia =
+    isVideo ||
+    photoUrl.startsWith("data:video/") ||
+    photoUrl.startsWith("blob:");
   const mediaClass = `w-full object-cover ${compact ? "aspect-square" : "aspect-[4/5]"} ${
     mirrored ? "scale-x-[-1]" : ""
   }`;
@@ -31,14 +36,14 @@ export default function EvidenceCard({
     >
       <div className="relative shrink-0">
         <div className="overflow-hidden rounded-t-2xl bg-black/[0.04]">
-          {isVideo ? (
+          {isVideoMedia ? (
             <video src={photoUrl} muted playsInline preload="metadata" className={mediaClass} />
           ) : (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={photoUrl} alt={title} className={mediaClass} />
+            <img src={photoUrl} alt={title} className={`${mediaClass} [content-visibility:auto]`} loading="lazy" />
           )}
         </div>
-        {isVideo && (
+        {isVideoMedia && (
           <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <span className="rounded-full bg-black/45 p-2 backdrop-blur">
               <Play size={compact ? 12 : 16} className="fill-white text-white" />

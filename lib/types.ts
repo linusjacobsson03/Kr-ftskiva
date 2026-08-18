@@ -32,6 +32,7 @@ export interface Submission {
   emoji: string;
   display_name: string;
   is_mirrored?: number;
+  is_video?: number;
 }
 
 export interface LeaderboardEntry {
@@ -49,6 +50,7 @@ export interface PhotoItem {
   created_at: string;
   display_name: string;
   is_mirrored?: number;
+  is_video?: number;
 }
 
 export interface ChallengeTemplate {

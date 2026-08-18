@@ -223,6 +223,7 @@ function ChallengesContent() {
                 title={s.title}
                 points={s.points_awarded}
                 mirrored={Boolean(s.is_mirrored)}
+                isVideo={Boolean(s.is_video)}
                 compact
               />
             ))}

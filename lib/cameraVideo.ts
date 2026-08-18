@@ -33,7 +33,9 @@ export function fileNameForVideoBlob(blob: Blob): string {
   return blob.type.includes("webm") ? "klipp.webm" : "klipp.mp4";
 }
 
-export function isVideoSrc(src: string, mime?: string): boolean {
+export function isVideoSrc(src: string, mime?: string, isVideo?: boolean | number): boolean {
+  if (isVideo === true || isVideo === 1) return true;
+  if (isVideo === false || isVideo === 0) return false;
   if (mime?.startsWith("video/")) return true;
   return src.startsWith("data:video/") || src.startsWith("blob:");
 }

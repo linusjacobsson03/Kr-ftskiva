@@ -14,6 +14,7 @@ export interface LightboxItem {
   isChallenge?: boolean;
   points?: number;
   mirrored?: boolean;
+  isVideo?: boolean;
 }
 
 export default function Lightbox({
@@ -166,7 +167,10 @@ export default function Lightbox({
         style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
       >
         {items.map((slide) => {
-          const isVideo = slide.url.startsWith("data:video/") || slide.url.startsWith("blob:");
+          const isVideo =
+            slide.isVideo ||
+            slide.url.startsWith("data:video/") ||
+            slide.url.startsWith("blob:");
           return (
             <div
               key={slide.id}
