@@ -1214,6 +1214,8 @@ function GuestsTab() {
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [testPushId, setTestPushId] = useState<number | null>(null);
   const [testMsg, setTestMsg] = useState<string | null>(null);
+  const [broadcast, setBroadcast] = useState("");
+  const [broadcastBusy, setBroadcastBusy] = useState(false);
   const [rsvpFilter, setRsvpFilter] = useState<"all" | "yes" | "maybe" | "no" | "none">("all");
 
   const counts = useMemo(() => {
@@ -1334,6 +1336,35 @@ function GuestsTab() {
     }
   }
 
+  async function sendBroadcast() {
+    const message = broadcast.trim();
+    if (!message) return;
+    setBroadcastBusy(true);
+    setError(null);
+    setTestMsg(null);
+    try {
+      const res = await fetch("/api/admin/push-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: message }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Kunde inte skicka notisen.");
+        return;
+      }
+      setBroadcast("");
+      setTestMsg(
+        `Notis skickad till ${data.delivered ?? 0} av ${data.attempted ?? 0} enheter.`
+      );
+      setTimeout(() => setTestMsg(null), 5000);
+    } catch {
+      setError("Kunde inte nå servern.");
+    } finally {
+      setBroadcastBusy(false);
+    }
+  }
+
   async function testPush(id: number) {
     setTestPushId(id);
     setTestMsg(null);
@@ -1406,6 +1437,34 @@ function GuestsTab() {
             : partyLive
               ? "Visa inbjudan igen"
               : "Öppna appen för gästerna"}
+        </button>
+      </div>
+
+      <div className="card space-y-3 p-5">
+        <div className="flex items-start gap-3">
+          <Bell size={20} strokeWidth={1.75} className="mt-0.5 shrink-0 text-accent-strong" />
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold text-cream">Skicka notis till alla</h2>
+            <p className="mt-1 text-xs leading-relaxed text-muted">
+              Skriv vad du vill. Alla som slagit på notiser får det direkt.
+            </p>
+          </div>
+        </div>
+        <textarea
+          className="input-field min-h-24 resize-y"
+          placeholder="T.ex. Nu börjar vi — kom in till matsalen"
+          value={broadcast}
+          onChange={(e) => setBroadcast(e.target.value)}
+          maxLength={240}
+        />
+        <button
+          type="button"
+          onClick={() => void sendBroadcast()}
+          disabled={broadcastBusy || !broadcast.trim()}
+          className="btn-primary w-full"
+        >
+          <Send size={16} strokeWidth={2} />
+          {broadcastBusy ? "Skickar…" : "Skicka notis till alla"}
         </button>
       </div>
 
