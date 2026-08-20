@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, hasAppAccess } from "@/lib/auth";
 import { getAll } from "@/lib/db";
 import { apiError } from "@/lib/apiError";
 
@@ -39,6 +39,10 @@ const LIST_FIELDS = `a.id, a.user_id, a.completed_at, a.points_awarded, a.is_mir
 
 export async function GET(request: Request) {
   try {
+    if (!(await hasAppAccess())) {
+      return NextResponse.json({ error: "Ej inloggad." }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const mineOnly = searchParams.get("mine") === "1";
     const userIdParam = searchParams.get("userId");

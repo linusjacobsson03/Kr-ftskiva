@@ -193,6 +193,13 @@ export async function getAdminSession(): Promise<boolean> {
   }
 }
 
+/** Guest session or unlocked admin PIN — used to lock the app for ex-guests. */
+export async function hasAppAccess(): Promise<boolean> {
+  if (await getCurrentUser()) return true;
+  if (await getAdminSession()) return true;
+  return false;
+}
+
 export const adminSessionCookieOptions = {
   httpOnly: true,
   sameSite: "lax" as const,

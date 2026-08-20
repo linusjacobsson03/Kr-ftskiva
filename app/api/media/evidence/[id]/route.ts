@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { hasAppAccess } from "@/lib/auth";
 import { getOne } from "@/lib/db";
 import { apiError } from "@/lib/apiError";
 import { dataUrlToBinaryResponse } from "@/lib/dataUrl";
@@ -8,6 +9,9 @@ export async function GET(
   ctx: RouteContext<"/api/media/evidence/[id]">
 ) {
   try {
+    if (!(await hasAppAccess())) {
+      return NextResponse.json({ error: "Ej inloggad." }, { status: 401 });
+    }
     const { id } = await ctx.params;
     const row = await getOne<{ photo_data: string | null }>(
       "SELECT photo_data FROM challenge_assignments WHERE id = ?",

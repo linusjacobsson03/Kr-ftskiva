@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MessageSquare, Smartphone } from "lucide-react";
 import { useAuth } from "../providers";
@@ -54,9 +53,6 @@ export default function LoginPage() {
           Du får en personlig länk via SMS från värden. Öppna den så loggas du
           in automatiskt med ditt namn — inget konto att skapa.
         </p>
-        <Link href="/inbjudan" className="btn-secondary mx-auto">
-          Tillbaka till inbjudan
-        </Link>
       </div>
 
       <p className="mt-7 flex max-w-xs items-center gap-1.5 text-center text-xs text-muted">

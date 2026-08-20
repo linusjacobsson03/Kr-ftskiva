@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, hasAppAccess } from "@/lib/auth";
 import { getAll, run } from "@/lib/db";
 import { apiError } from "@/lib/apiError";
 import { readUploadedMedia } from "@/lib/readUploadedMedia";
@@ -16,6 +16,10 @@ type PhotoListRow = {
 
 export async function GET() {
   try {
+    if (!(await hasAppAccess())) {
+      return NextResponse.json({ error: "Ej inloggad." }, { status: 401 });
+    }
+
     const rows = await getAll<PhotoListRow>(
       `SELECT p.id, p.user_id, p.caption, p.created_at, p.is_mirrored,
         CASE WHEN p.image_data LIKE 'data:video/%' THEN 1 ELSE 0 END AS is_video,

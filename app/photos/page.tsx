@@ -20,7 +20,6 @@ import { saveItems } from "@/lib/download";
 import { fileNameForVideoBlob, isVideoSrc } from "@/lib/cameraVideo";
 import type { CaptureMeta } from "../components/CameraCapture";
 import type { PhotoItem, Submission } from "@/lib/types";
-import Link from "next/link";
 
 type AlbumEntry =
   | {
@@ -441,12 +440,9 @@ function PhotosContent() {
       )}
 
       {!selectMode && !user && (
-        <Link
-          href="/inbjudan"
-          className="card block p-4 text-center text-sm text-muted transition hover:bg-black/[0.03]"
-        >
-          Öppna din inbjudan för att ladda upp foton
-        </Link>
+        <div className="card p-4 text-center text-sm text-muted">
+          Öppna din personliga inbjudningslänk för att ladda upp foton
+        </div>
       )}
 
       {loading ? (

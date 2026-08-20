@@ -9,7 +9,6 @@ import EvidenceCard from "../components/EvidenceCard";
 import PushOptIn from "../components/PushOptIn";
 import { useAuth } from "../providers";
 import type { PendingAssignment, Submission } from "@/lib/types";
-import Link from "next/link";
 
 function ChallengeCard({
   assignment,
@@ -188,9 +187,7 @@ function ChallengesContent() {
             ) : (
               <>
                 Dina bildbevis syns här när du är inloggad.{" "}
-                <Link href="/inbjudan" className="text-accent-strong underline-offset-2 hover:underline">
-                  Till inbjudan
-                </Link>
+                <span className="text-accent-strong">Be om en personlig inbjudningslänk</span>
               </>
             )}
           </p>

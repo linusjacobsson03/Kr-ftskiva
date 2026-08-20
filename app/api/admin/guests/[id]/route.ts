@@ -26,6 +26,7 @@ export async function DELETE(_request: Request, ctx: Ctx) {
       return NextResponse.json({ error: "Gästen hittades inte." }, { status: 404 });
     }
 
+    await run("DELETE FROM push_subscriptions WHERE user_id = ?", [id]);
     await run("DELETE FROM users WHERE id = ?", [id]);
     return NextResponse.json({ ok: true });
   } catch (err) {

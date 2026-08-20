@@ -1,7 +1,6 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import InviteHero from "../../components/InviteHero";
 import { useAuth } from "../../providers";
@@ -77,9 +76,9 @@ export default function PersonalInvitePage({
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center">
         <p className="font-display text-xl text-[#f3efe6]">Oj, länken funkar inte</p>
         <p className="max-w-xs text-sm text-[#9a968c]">{error}</p>
-        <Link href="/inbjudan" className="btn-secondary">
-          Till inbjudan
-        </Link>
+        <p className="max-w-xs text-sm text-[#9a968c]">
+          Be om en ny personlig inbjudningslänk om du ska vara med.
+        </p>
       </div>
     );
   }

@@ -119,7 +119,15 @@ export async function sendPushToAll(payload: {
   tag?: string;
 }): Promise<PushSendResult> {
   await ensureConfigured();
-  const subs = await getAll<PushSubscriptionRow>("SELECT * FROM push_subscriptions");
+  // Drop orphan subscriptions from deleted guests, then only notify active users.
+  await run(
+    `DELETE FROM push_subscriptions
+     WHERE user_id NOT IN (SELECT id FROM users)`
+  );
+  const subs = await getAll<PushSubscriptionRow>(
+    `SELECT ps.* FROM push_subscriptions ps
+     INNER JOIN users u ON u.id = ps.user_id`
+  );
   if (subs.length === 0) {
     return {
       attempted: 0,
