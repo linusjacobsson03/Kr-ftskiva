@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bell, Check, ChevronDown, Clock, Copy, ListPlus, Lock, MessageSquare, PartyPopper, Send, Sparkles, Trash2, UserPlus, X } from "lucide-react";
+import { Bell, Check, ChevronDown, Clock, Copy, ListPlus, Lock, MessageSquare, PartyPopper, Send, Share2, Sparkles, Trash2, UserPlus, X } from "lucide-react";
 import AdminPasscodeGate from "../components/AdminPasscodeGate";
 import type { ChallengeTemplate, ScheduleEntry, UserOption } from "@/lib/types";
 
@@ -1385,10 +1385,49 @@ function GuestsTab() {
     }
   }
 
+  function inviteShareText(guest: { displayName: string; inviteUrl: string }) {
+    return `Hej ${guest.displayName}! Du är inbjuden till en kräftskiva på Brattön, öppna din personliga inbjudan här: ${guest.inviteUrl}`;
+  }
+
   function smsHref(guest: { displayName: string; inviteUrl: string | null }) {
     if (!guest.inviteUrl) return "#";
-    const body = `Hej ${guest.displayName}! Du är inbjuden till en personalaktivitet på Lilla Brattön. Öppna din personliga inbjudan här: ${guest.inviteUrl}`;
-    return `sms:?&body=${encodeURIComponent(body)}`;
+    return `sms:?&body=${encodeURIComponent(
+      inviteShareText({ displayName: guest.displayName, inviteUrl: guest.inviteUrl }),
+    )}`;
+  }
+
+  async function shareInvite(guest: {
+    id: number;
+    displayName: string;
+    inviteUrl: string | null;
+  }) {
+    if (!guest.inviteUrl) return;
+    const text = inviteShareText({
+      displayName: guest.displayName,
+      inviteUrl: guest.inviteUrl,
+    });
+    const nav = navigator as Navigator & {
+      share?: (data: ShareData) => Promise<void>;
+      canShare?: (data: ShareData) => boolean;
+    };
+    if (typeof nav.share === "function") {
+      try {
+        const data: ShareData = {
+          title: "Kräftskiva",
+          text,
+          url: guest.inviteUrl,
+        };
+        if (!nav.canShare || nav.canShare(data)) {
+          await nav.share(data);
+          return;
+        }
+      } catch (err) {
+        // User cancelled the sheet — not an error.
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      }
+    }
+    // Desktop / unsupported: fall back to SMS compose if possible.
+    window.location.href = smsHref(guest);
   }
 
   async function copyLink(guest: { id: number; inviteUrl: string | null }) {
@@ -1472,8 +1511,8 @@ function GuestsTab() {
         <div>
           <h2 className="text-sm font-semibold text-cream">Lägg till gäst</h2>
           <p className="mt-1 text-xs leading-relaxed text-muted">
-            Skriv namnet och skapa ett konto med unik länk. Dela via SMS — gästen
-            öppnar länken och är inloggad direkt, utan att skapa konto själv.
+            Skriv namnet och skapa ett konto med unik länk. Dela till Snap, SMS
+            eller annat — gästen öppnar länken och är inloggad direkt.
           </p>
         </div>
         <form onSubmit={addGuest} className="flex gap-2">
@@ -1592,6 +1631,16 @@ function GuestsTab() {
                 >
                   <Bell size={14} strokeWidth={1.75} />
                   {testPushId === g.id ? "…" : "Testnotis"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void shareInvite(g)}
+                  className="btn-secondary !px-3 !py-2 text-xs"
+                  disabled={!g.inviteUrl}
+                  title="Dela via Snap, SMS, Messages m.m."
+                >
+                  <Share2 size={14} strokeWidth={1.75} />
+                  Dela
                 </button>
                 <a
                   href={smsHref(g)}

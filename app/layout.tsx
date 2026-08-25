@@ -29,9 +29,12 @@ const inter = Inter({
   display: "swap",
 });
 
+const SHARE_DESCRIPTION =
+  "Du är inbjuden till en kräftskiva på Brattön, öppna din personliga inbjudan här";
+
 export const metadata: Metadata = {
   title: "Kräftskiva",
-  description: "Du är inbjuden till kräftskivan på Lilla Brattön.",
+  description: SHARE_DESCRIPTION,
   manifest: "/manifest.webmanifest?v=3",
   applicationName: "Kräftskiva",
   appleWebApp: {
@@ -48,23 +51,23 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "Kräftskiva",
-    description: "Du är inbjuden till kräftskivan på Lilla Brattön.",
+    description: SHARE_DESCRIPTION,
     siteName: "Kräftskiva",
     locale: "sv_SE",
     type: "website",
     images: [
       {
         url: "/og-share.png",
-        width: 1200,
-        height: 630,
-        alt: "Kräftskiva",
+        width: 1024,
+        height: 723,
+        alt: "It's time for Kräftskiva — 19 september kl 16:00",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Kräftskiva",
-    description: "Du är inbjuden till kräftskivan på Lilla Brattön.",
+    description: SHARE_DESCRIPTION,
     images: ["/og-share.png"],
   },
 };
