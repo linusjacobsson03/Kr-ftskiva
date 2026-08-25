@@ -1,6 +1,8 @@
-import { redirect } from "next/navigation";
+"use client";
 
-/** App entry — guests land on challenges, not the old home screen. */
+import InviteHero from "./components/InviteHero";
+
+/** Domain entry: only the invite — no app tabs. */
 export default function Home() {
-  redirect("/challenges");
+  return <InviteHero />;
 }

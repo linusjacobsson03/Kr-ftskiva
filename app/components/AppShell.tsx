@@ -17,8 +17,12 @@ const NAV_CONTENT_HEIGHT = "4.25rem";
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  // Personal invite links stay open so SMS links can claim a session.
-  if (pathname.startsWith("/i/")) {
+  // Invite-only surfaces: no tab bar, no access gate chrome.
+  if (
+    pathname === "/" ||
+    pathname === "/inbjudan" ||
+    pathname.startsWith("/i/")
+  ) {
     return <div className="theme-invite min-h-dvh">{children}</div>;
   }
 

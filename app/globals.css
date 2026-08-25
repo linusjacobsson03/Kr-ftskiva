@@ -13,6 +13,7 @@
   --color-danger: #d1454a;
   --color-success: #2f9a6f;
   --font-display: var(--font-fraunces), "Iowan Old Style", serif;
+  --font-title: var(--font-cormorant), "Palatino Linotype", "Book Antiqua", serif;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
@@ -92,6 +93,11 @@ body::after {
   .font-display {
     font-family: var(--font-display);
     letter-spacing: -0.01em;
+  }
+
+  .font-title {
+    font-family: var(--font-title);
+    letter-spacing: -0.02em;
   }
 }
 

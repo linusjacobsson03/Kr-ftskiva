@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Inter } from "next/font/google";
+import { Cormorant_Garamond, Fraunces, Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "./providers";
 import AppShell from "./components/AppShell";
@@ -14,6 +14,14 @@ const fraunces = Fraunces({
   display: "swap",
 });
 
+const cormorant = Cormorant_Garamond({
+  subsets: ["latin"],
+  variable: "--font-cormorant",
+  weight: ["500", "600", "700"],
+  style: ["normal", "italic"],
+  display: "swap",
+});
+
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
@@ -22,14 +30,14 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Lilla Brattön",
-  description: "Du är inbjuden till en personalaktivitet på Lilla Brattön.",
+  title: "Kräftskiva",
+  description: "Du är inbjuden till kräftskivan på Lilla Brattön.",
   manifest: "/manifest.webmanifest?v=3",
-  applicationName: "Lilla Brattön",
+  applicationName: "Kräftskiva",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Lilla Brattön",
+    title: "Kräftskiva",
   },
   icons: {
     icon: [
@@ -39,9 +47,9 @@ export const metadata: Metadata = {
     apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
   openGraph: {
-    title: "Lilla Brattön",
-    description: "Du är inbjuden till en personalaktivitet på Lilla Brattön.",
-    siteName: "Lilla Brattön",
+    title: "Kräftskiva",
+    description: "Du är inbjuden till kräftskivan på Lilla Brattön.",
+    siteName: "Kräftskiva",
     locale: "sv_SE",
     type: "website",
     images: [
@@ -49,14 +57,14 @@ export const metadata: Metadata = {
         url: "/og-share.png",
         width: 1200,
         height: 630,
-        alt: "Lilla Brattön",
+        alt: "Kräftskiva",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Lilla Brattön",
-    description: "Du är inbjuden till en personalaktivitet på Lilla Brattön.",
+    title: "Kräftskiva",
+    description: "Du är inbjuden till kräftskivan på Lilla Brattön.",
     images: ["/og-share.png"],
   },
 };
@@ -66,8 +74,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  // Match page bg so iOS Safari’s URL/search bar blends instead of a hard edge.
-  themeColor: "#ffffff",
+  // Match invite dark bg so iOS Safari’s URL/search bar blends.
+  themeColor: "#0b0d0c",
   viewportFit: "cover",
 };
 
@@ -75,7 +83,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="sv"
-      className={`${fraunces.variable} ${inter.variable} h-full antialiased`}
+      className={`${fraunces.variable} ${cormorant.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full">
         <AuthProvider>
