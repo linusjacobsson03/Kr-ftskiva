@@ -29,6 +29,7 @@ export const EVENT = {
       heading: "VAD KOSTAR DET?",
       body: [
         "Vi kommer behöva ta 250 kr per person just för att täcka hyran – men som sagt ingår alla tillbehör: bröd, sås, sill, pajer och massa annat som kommer finnas på plats.",
+        "Swisha 250 kr till 073-510 54 32 – det är till mig ni swishar.",
         "Det ni själva tar med er är:",
         "Kräftor, räkor eller annat gott ni vill käka",
         "Dryck – öl, vin, snaps eller vad törsten begär för dagen 🍻",
@@ -65,6 +66,7 @@ export const EVENT = {
   ],
   welcomeOutro: "Vi ses snart!",
   welcomeSignoff: "VARMT VÄLKOMMEN",
+  rsvpDeadline: "OSA – vi behöver ert svar senast 11 september 🙏",
 };
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
@@ -222,6 +224,9 @@ export default function InviteHero({
             </p>
             <p className="font-display text-sm font-semibold tracking-wide text-[#f3efe6]">
               {EVENT.welcomeSignoff}
+            </p>
+            <p className="pt-2 text-[0.85rem] font-semibold leading-relaxed text-[#7ab8f0]">
+              {EVENT.rsvpDeadline}
             </p>
           </div>
         </div>
