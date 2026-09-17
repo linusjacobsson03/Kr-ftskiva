@@ -7,6 +7,8 @@ import { Check, HelpCircle, X } from "lucide-react";
 const BOOKING_URL =
   "https://boka.lillabratton.se/accommodation?channelid=4b404e73-5916-46b1-a536-2c3ffc0ac4f5&+dryck=&roomconfig=a2&year=2026&month=9&day=19&staylength=1";
 
+const FERRY_DOCK_URL = "https://maps.app.goo.gl/zFV9JaQsPpK5dcqU7?g_st=ic";
+
 /** Edit these to match your own party. */
 export const EVENT = {
   title: "Kräftskiva",
@@ -22,6 +24,7 @@ export const EVENT = {
       body: [
         "Färjan går varje timme fram till klockan 16:00. Slutar man jobbet senare än så går det tyvärr inga mer turer utan vi får hjälpas åt att lösa det isf.",
         "Färjan kör hem alla från 01-02 i olika omgångar (max 11 åt gången), eller om man då sover på ön så kan man lägga sig när man vill 😉",
+        `Färjan går från Almöbryggan: ${FERRY_DOCK_URL}`,
       ],
     },
     {
@@ -161,6 +164,18 @@ export default function InviteHero({
             </p>
             <p className="mt-2 text-[0.95rem] leading-relaxed text-[#f3efe6]/70">
               Hemfärjan går sen 01–02.
+            </p>
+            <p className="mt-2 text-[0.95rem] leading-relaxed text-[#f3efe6]/70">
+              Färjan går från{" "}
+              <a
+                href={FERRY_DOCK_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-[#7ab8f0] underline underline-offset-2 hover:text-[#a8d0f7]"
+              >
+                Almöbryggan
+              </a>
+              .
             </p>
             <div className="mt-4 border-t border-white/[0.08] pt-4">
               <p className="text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[#f3efe6]/90">
