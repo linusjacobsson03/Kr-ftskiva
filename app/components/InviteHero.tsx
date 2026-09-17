@@ -20,7 +20,7 @@ export const EVENT = {
     {
       heading: "SÅ TAR NI ER TILL ÖN",
       body: [
-        "Färjan går varje timme fram till klockan 16:00. Slutar man jobbet senare än så går det tyvärr inga mer turer utan vi får hjälpas åt att lösa det isf. Ju fler som bokar boende desto större chans har vi för en tur vid 17 exempelvis ⛴️",
+        "Färjan går varje timme fram till klockan 16:00. Slutar man jobbet senare än så går det tyvärr inga mer turer utan vi får hjälpas åt att lösa det isf.",
         "Färjan kör hem alla från 01-02 i olika omgångar (max 11 åt gången), eller om man då sover på ön så kan man lägga sig när man vill 😉",
       ],
     },
