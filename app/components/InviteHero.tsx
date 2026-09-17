@@ -109,6 +109,7 @@ export default function InviteHero({
 }) {
   const [rsvp, setRsvp] = useState<Rsvp | null>(initialRsvp);
   const [guestCount, setGuestCount] = useState<number>(EVENT.invited);
+  const [noticeOpen, setNoticeOpen] = useState(true);
 
   useEffect(() => {
     setRsvp(initialRsvp);
@@ -136,6 +137,49 @@ export default function InviteHero({
 
   return (
     <div className="relative min-h-dvh bg-[#0b0d0c] text-[#f3efe6]">
+      {noticeOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-5 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ferry-notice-heading"
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#14100d] p-6 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)]">
+            <p className="text-[0.7rem] font-bold uppercase tracking-[0.14em] text-[#7ab8f0]">
+              OBS ⛴️
+            </p>
+            <h2
+              id="ferry-notice-heading"
+              className="font-display mt-1.5 text-xl font-semibold leading-tight text-[#f3efe6]"
+            >
+              Färjtider ut till ön
+            </h2>
+            <p className="mt-3 text-[0.95rem] leading-relaxed text-[#f3efe6]/70">
+              Färjan går <span className="font-semibold text-[#f3efe6]">14:00, 15:00</span> och{" "}
+              <span className="font-semibold text-[#f3efe6]">16:00</span> – sen går det tyvärr inga
+              fler turer ut, så var på plats innan 16:00!
+            </p>
+            <p className="mt-2 text-[0.95rem] leading-relaxed text-[#f3efe6]/70">
+              Hemfärjan går sen 01–02.
+            </p>
+            <div className="mt-4 border-t border-white/[0.08] pt-4">
+              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[#f3efe6]/90">
+                Ta med dig
+              </p>
+              <p className="mt-1.5 text-[0.95rem] leading-relaxed text-[#f3efe6]/70">
+                Kräftor, räkor eller vad du vill käka – och dryck/alkohol 🍻
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setNoticeOpen(false)}
+              className="mt-5 w-full rounded-full bg-[#f3efe6] py-2.5 text-[0.85rem] font-bold text-[#0b0d0c] transition active:scale-[0.98]"
+            >
+              Uppfattat
+            </button>
+          </div>
+        </div>
+      ) : null}
       <div className="pb-24">
         <div className="relative h-[50vh] min-h-[280px] w-full overflow-hidden bg-[#1a1a1a]">
           <Image
