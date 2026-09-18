@@ -9,7 +9,7 @@ export async function isPartyLive(): Promise<boolean> {
   return (await getSetting(PARTY_LIVE_KEY)) === "1";
 }
 
-/** Admin: whether invite links skip the invite page and open the app. */
+/** Admin: whether invite links show the party code lock before the invite. */
 export async function GET() {
   try {
     if (!(await getAdminSession())) {

@@ -48,7 +48,7 @@ export async function GET(_request: Request, ctx: Ctx) {
 /**
  * Claim the invite: create a session for this guest so opening the SMS link
  * both shows their personal invite and logs them into their account.
- * When party mode is on, clients skip the invite UI and go straight to the app.
+ * When party mode is on, clients show the party code lock before the invite.
  */
 export async function POST(request: Request, ctx: Ctx) {
   try {

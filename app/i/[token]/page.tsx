@@ -1,14 +1,15 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import InviteHero from "../../components/InviteHero";
+import PartyCodeGate from "../../components/PartyCodeGate";
 import { useAuth } from "../../providers";
 
 /**
  * Personal invite from SMS: /i/<token>
  * Shows the photo invite with "Hej, {name}" — unless admin has flipped
- * "party live", in which case the guest lands straight in the app.
+ * "party live", in which case guests first have to solve the party code
+ * before they see the invite.
  */
 export default function PersonalInvitePage({
   params,
@@ -17,12 +18,12 @@ export default function PersonalInvitePage({
 }) {
   const { token } = use(params);
   const { refresh } = useAuth();
-  const router = useRouter();
   const [firstName, setFirstName] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [rsvp, setRsvp] = useState<"yes" | "maybe" | "no" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,13 +41,10 @@ export default function PersonalInvitePage({
         }
         await refresh();
         if (cancelled) return;
-        if (data.partyLive) {
-          router.replace("/challenges");
-          return;
-        }
         setFirstName(data.firstName ?? null);
         setDisplayName(data.displayName ?? null);
         setRsvp(data.rsvpStatus ?? null);
+        setLocked(!!data.partyLive);
         setReady(true);
       } catch {
         if (!cancelled) setError("Kunde inte öppna inbjudan.");
@@ -56,7 +54,7 @@ export default function PersonalInvitePage({
     return () => {
       cancelled = true;
     };
-  }, [token, refresh, router]);
+  }, [token, refresh]);
 
   async function saveRsvp(value: "yes" | "maybe" | "no") {
     setRsvp(value);
@@ -89,6 +87,10 @@ export default function PersonalInvitePage({
         <div className="h-8 w-8 animate-pulse rounded-full bg-accent/40" />
       </div>
     );
+  }
+
+  if (locked) {
+    return <PartyCodeGate onSolved={() => setLocked(false)} />;
   }
 
   return (

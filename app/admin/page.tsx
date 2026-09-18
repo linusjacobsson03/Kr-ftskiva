@@ -1460,8 +1460,8 @@ function GuestsTab() {
             </h2>
             <p className="mt-1 text-xs leading-relaxed text-muted">
               {partyLive
-                ? "Gästernas inbjudningslänkar går rakt in i appen — ingen inbjudningssida."
-                : "När det är dags: tryck här så landar gästerna direkt i appen när de öppnar sin länk."}
+                ? "Gästernas inbjudningslänkar möter en kodlås-skärm (koden är 7593) innan de kommer in."
+                : "När det är dags: tryck här så möts gästerna av kodlåset (kod 7593) när de öppnar sin länk."}
             </p>
           </div>
         </div>
@@ -1475,7 +1475,7 @@ function GuestsTab() {
             ? "…"
             : partyLive
               ? "Visa inbjudan igen"
-              : "Öppna appen för gästerna"}
+              : "Aktivera kodlåset för gästerna"}
         </button>
       </div>
 
